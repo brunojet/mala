@@ -135,3 +135,19 @@ Fornecer para as automações uma interface para solicitações de publicações
    - **Plano de Manutenção:** Incluir um plano de manutenção para garantir que o sistema continue funcionando corretamente após a implementação.
    - **Definir Métricas de Sucesso:** Estabelecer métricas para avaliar o sucesso do sistema, como tempo de resposta das APIs, número de dispositivos suportados, etc.
    - **Plano de Manutenção:** Incluir um plano de manutenção para garantir que o sistema continue funcionando corretamente após a implementação.
+
+
+## Aplicativo certificado e submetido ao M.A.L.A
+```mermaid
+graph TD;
+    A[Automação requisita via Portal do desenvolvedor a publicação de apps] --> B[Times envolvidos são notificados da requisição]
+    B --> C[Times envolvidos acessam a plataforma analisam o pedido e aprovam ou rejeitam o pedido de piloto]
+    C -->|REJEITAR| D[Notificar rejeição para automação e times envolvidos] --> FIM
+    C --> E[Publicação para o piloto é agendada]
+    E --> F[Publicação para o piloto é submetida]
+    F --> G[Publicação para o piloto é encerrada]
+    G --> H[Times envolvidos acessam a plataforma, analisam o resultado e aprovam ou rejeitam o piloto]
+    H -->|REJEITAR| D
+    H --> I[Notificar sucesso para automação e times envolvidos]
+    I --> FIM
+```
