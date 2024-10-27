@@ -7,7 +7,7 @@ from boto3.dynamodb.conditions import Key
 
 class DynamoDBHelper(ABC):
     ID_KEY = "id"
-    ID_RANGE_KEY = "id_ts"
+    ID_RANGE_KEY = "id_range"
     dynamodb = None
 
     def __init__(
@@ -32,6 +32,14 @@ class DynamoDBHelper(ABC):
                 raise ValueError(f"Invalid GSI key schema {gsi_key_schema}")
 
             self.gsi_key_schemas.append(gsi_key_schema)
+
+    def build_update_key(self, item: Dict[str, str]) -> Dict[str, Any]:
+        update_key = {}
+
+        for key in sorted(self.base_keys):
+            update_key[key] = item[key]
+
+        return update_key
 
     def build_condition_expression(self, keys, is_insert: bool = False) -> Attr:
         condition_expression = None
@@ -70,13 +78,15 @@ class DynamoDBHelper(ABC):
         return condition_expression
 
     @staticmethod
-    def build_update_expression(update_data: Dict[str, Any]) -> str:
+    def build_update_expression(update_items: Dict[str, Any]) -> str:
+        if not update_items or len(update_items) == 0:
+            raise ValueError("Update items cannot be empty.")
+
         update_expression = "SET "
 
-        for idx, (key, value) in enumerate(update_data.items()):
+        for idx, (key, value) in enumerate(update_items.items()):
             update_expression += f"#{key} = :val{idx}, "
 
-        # Remover a última vírgula e espaço
         update_expression = update_expression.rstrip(", ")
 
         return update_expression
@@ -104,12 +114,15 @@ class DynamoDBHelper(ABC):
         return filter_expression
 
     def build_attribute_name_and_values(
-        self, update_data: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], Dict[str, str]]:
+        self, update_items: Dict[str, Any]
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, str]]]:
+        if not update_items or len(update_items) == 0:
+            raise ValueError("Update data cannot be empty.")
+
         expression_attribute_names = {}
         expression_attribute_values = {}
 
-        for idx, (key, value) in enumerate(update_data.items()):
+        for idx, (key, value) in enumerate(update_items.items()):
             expression_attribute_names[f"#{key}"] = key
             expression_attribute_values[f":val{idx}"] = value
 

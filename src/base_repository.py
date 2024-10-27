@@ -21,6 +21,7 @@ class BaseRepository(DynamoDBHelper):
     ):
         super().__init__(table_name, has_range_key, gsi_key_schemas)
         self.table_name = table_name
+        self.has_range_key = has_range_key
 
     @staticmethod
     def milliseconds_of_current_second() -> int:
@@ -116,36 +117,26 @@ class BaseRepository(DynamoDBHelper):
     def __update(
         self,
         update_item_function,
-        update_condition: Dict[str, Any],
-        update_items: Dict[str, Any],
+        key,
+        update_expression,
+        condition_expression,
+        expression_attribute_names,
+        expression_attribute_values,
     ) -> Optional[str]:
         try:
-            if DynamoDBHelper.is_primary_key(update_condition):
-                update_condition = {
-                    key: value for key, value in update_condition.items()
-                }
+            update_params = {
+                "Key": key,
+                "UpdateExpression": update_expression,
+                "ExpressionAttributeNames": expression_attribute_names,
+                "ExpressionAttributeValues": expression_attribute_values,
+            }
 
-            condition_expression = self.build_condition_expression(update_condition)
+            if condition_expression:
+                update_params["ConditionExpression"] = condition_expression
 
-            update_expression = self.build_update_expression(update_items)
+            logging.debug(f"update_params: {update_params}")
 
-            expression_attribute_names, expression_attribute_values = (
-                self.build_expression_attributes(update_items)
-            )
-
-            logging.debug(f"Key: {update_condition}")
-            logging.debug(f"Condition Expression: {str(condition_expression)}")
-            logging.debug(f"UpdateExpression: {update_expression}")
-            logging.debug(f"ExpressionAttributeNames: {expression_attribute_names}")
-            logging.debug(f"ExpressionAttributeValues: {expression_attribute_values}")
-
-            update_item_function(
-                Key=update_condition,
-                ConditionExpression=condition_expression,
-                UpdateExpression=update_expression,
-                ExpressionAttributeNames=expression_attribute_names,
-                ExpressionAttributeValues=expression_attribute_values,
-            )
+            return update_item_function(**update_params)
         except Exception as e:
             print(f"Erro ao atualizar item na tabela {self.table_name}: {e}")
             return None
@@ -196,53 +187,55 @@ class BaseRepository(DynamoDBHelper):
 
     def update(
         self,
-        update_condition: Dict[str, Any],
-        update_items: Dict[str, Any],
-        last_evaluated_key: Dict[str, Any] = None,
+        key: Dict[str, str],
+        filter_condition: Optional[Dict[str, str]] = {},
+        update_items: Dict[str, Any] = {},
     ) -> Optional[str]:
-        if DynamoDBHelper.is_primary_key(update_condition):
-            return self.__update(self.table.update_item, update_condition, update_items)
+        updated_ids = []
+
+        update_expression = self.build_update_expression(update_items)
+
+        expression_attribute_names, expression_attribute_values = (
+            self.build_attribute_name_and_values(update_items)
+        )
+
+        if self.is_primary_key(key):
+            condition_expression = self.build_filter_expression(filter_condition)
+
+            return self.__update(
+                self.table.update_item,
+                key,
+                update_expression,
+                condition_expression,
+                expression_attribute_names,
+                expression_attribute_values,
+                update_items,
+            )
         else:
-            index_name, key_condition_expression = (
-                self.get_gsi_key_schema_and_expression(update_condition)
-            )
-
-            filter_expression = self.build_filter_expression(update_condition)
-
-            expression_attribute_names, expression_attribute_values = (
-                self.build_attribute_name_and_values(update_items)
-            )
-
             last_evaluated_key = None
 
             while True:
-                query_params = {
-                    "IndexName": index_name,
-                    "KeyConditionExpression": key_condition_expression,
-                    "ExpressionAttributeNames": expression_attribute_names,
-                    "ExpressionAttributeValues": expression_attribute_values,
-                    "FilterExpression": filter_expression,
-                }
-
-                if last_evaluated_key:
-                    query_params["ExclusiveStartKey"] = last_evaluated_key
-
-                response = table.query(**query_params)
-
-                last_evaluated_key = response.get("LastEvaluatedKey")
-
-                items = response.get("Items", [])
-
-                if not items:
-                    return None
+                items, last_evaluated_key = self.query(
+                    key, filter_condition, last_evaluated_key
+                )
 
                 for item in items:
-                    self.__update(self.table.update_item, item, update_items)
+                    update_key = self.build_update_key(item)
 
+                    self.__update(
+                        self.table.update_item,
+                        update_key,
+                        update_expression,
+                        None,
+                        expression_attribute_names,
+                        expression_attribute_values,
+                    )
+
+                    updated_ids.append(update_key)
                 if not last_evaluated_key:
                     break
 
-            return items[0].get("id")
+            return updated_ids
 
     def batch_update(
         self,
@@ -344,17 +337,17 @@ def test_operations():
     # repo.batch_insert(items)
     # Atualizar o item
 
-    # update_condition = {"mdm": "SF01", "version_name": "1.0.1"}
-    # update_itens = {"mdm": "SF01", "version_name": "1.0.9"}
+    key = {"mdm": "SF01"}
+    update_items = {"mdm": "SF01", "version_name": "1.0.9"}
 
-    # repo.update(update_condition, update_itens)
+    repo.update(key, update_items=update_items)
 
     # Consultar o item
 
-    key_condition = {"version_name": "1.0.1"}
+    # key_condition = {"version_name": "1.0.1"}
 
-    items = repo.query(key_condition)
-    print("Itens consultados:", items)
+    # items = repo.query(key_condition)
+    # print("Itens consultados:", items)
 
 
 test_operations()
