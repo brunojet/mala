@@ -11,6 +11,7 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 class BaseRepository(DynamoDBHelper):
     def __init__(
         self,
@@ -162,18 +163,22 @@ class BaseRepository(DynamoDBHelper):
             index_name = None
             key_condition_expression = None
             filter_expression = None
+            expression_attribute_names = None
+            expression_attribute_values = None
 
             if self.is_primary_key(key_conditions):
                 key_condition_expression = self.build_key_expression(key_conditions)
             else:
-                index_name, key_condition_expression = self.get_gsi_key_schema_and_expression(key_conditions)
+                index_name, key_condition_expression = (
+                    self.get_gsi_key_schema_and_expression(key_conditions)
+                )
 
             if filter_condition:
                 filter_expression = self.build_filter_expression(filter_condition)
 
-            expression_attribute_names, expression_attribute_values = (
-                self.build_attribute_name_and_values(filter_condition)
-            )
+                expression_attribute_names, expression_attribute_values = (
+                    self.build_attribute_name_and_values(filter_condition)
+                )
 
             items, last_evaluated_key = self.__query(
                 index_name,
