@@ -41,41 +41,27 @@ class DynamoDBHelper(ABC):
 
         return update_key
 
-    def build_condition_expression(self, keys, is_insert: bool = False) -> Attr:
-        condition_expression = None
-
-        for key in keys:
-            if condition_expression is None:
-                condition_expression = (
-                    Attr(key).not_exists() if is_insert else Attr(key).exists()
-                )
-            else:
-                condition_expression &= (
-                    Attr(key).not_exists() if is_insert else Attr(key).exists()
-                )
-
-        return condition_expression
-
     def insert_condition_expression(self) -> Attr:
-        return self.build_condition_expression(self.base_keys, is_insert=True)
-
-    def update_condition_expression(self, keys) -> Attr:
-        return self.build_condition_expression(keys)
-
-    @staticmethod
-    def generate_condition_expression(conditions: List[Dict[str, str]]) -> str:
-        if not conditions:
-            return None
-
         condition_expression = None
-        for condition in conditions:
-            for key, value in condition.items():
-                if condition_expression is None:
-                    condition_expression = Attr(key).eq(value)
-                else:
-                    condition_expression = condition_expression & Attr(key).eq(value)
+
+        for key in self.base_keys:
+            if condition_expression is None:
+                condition_expression = Attr(key).not_exists()
+            else:
+                condition_expression &= Attr(key).not_exists()
 
         return condition_expression
+
+    def build_key_expression(self, keys: List[Dict[str, Any]]) -> Attr:
+        key_expression = None
+
+        for key, value in keys.items():
+            if key_expression is None:
+                key_expression = Key(key).eq(value)
+            else:
+                key_expression &= Key(key).eq(value)
+
+        return key_expression
 
     @staticmethod
     def build_update_expression(update_items: Dict[str, Any]) -> str:
@@ -91,21 +77,11 @@ class DynamoDBHelper(ABC):
 
         return update_expression
 
-    def build_key_expression(self, keys: List[Dict[str, Any]]) -> Attr:
-        key_expression = None
-
-        for key, value in keys.items():
-            if key_expression is None:
-                key_expression = Key(key).eq(value)
-            else:
-                key_expression &= Key(key).eq(value)
-
-        return key_expression
-
-    def build_filter_expression(self, update_data: Dict[str, Any]) -> str:
+    @staticmethod
+    def build_filter_expression(update_item: Dict[str, Any]) -> str:
         filter_expression = None
 
-        for key, value in update_data.items():
+        for key, value in update_item.items():
             if filter_expression is None:
                 filter_expression = Attr(key).eq(value)
             else:
@@ -113,8 +89,9 @@ class DynamoDBHelper(ABC):
 
         return filter_expression
 
+    @staticmethod
     def build_attribute_name_and_values(
-        self, update_items: Dict[str, Any]
+        update_items: Dict[str, Any]
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, str]]]:
         if not update_items or len(update_items) == 0:
             raise ValueError("Update data cannot be empty.")
@@ -190,14 +167,3 @@ class DynamoDBHelper(ABC):
         key = self.build_key_expression(key_condition)
 
         return index_name, key
-
-
-# db_helper = DynamoDBHelper(
-#     "mala_app_release",
-#     has_range_key=True,
-#     gsi_key_schemas=[
-#         {"IndexName": "mdm-version_name-index", "HASH": "mdm", "RANGE": "version_name"}
-#     ],
-# )
-
-# gsi_key_schema = db_helper.get_gsi_key_schema_and_expression({"version_name": "1.0.0"})
