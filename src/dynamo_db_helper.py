@@ -122,12 +122,12 @@ class DynamoDBHelper(ABC):
         self, condition_keys: set[str], require_sort_key: bool = False
     ) -> Optional[Dict[str, str]]:
         result = None
+
         for gsi_key_schema in self.gsi_key_schemas:
             hash_key = gsi_key_schema.get("HASH")
             range_key = gsi_key_schema.get("RANGE")
 
             if hash_key not in condition_keys:
-                print(f"Hash key {hash_key} is mandatory in condition keys {condition_keys}")
                 continue
 
             if require_sort_key:
