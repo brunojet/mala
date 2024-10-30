@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class BaseRepository(DynamoDBHelper):
+    DYNAMO_DB = boto3.resource('dynamodb')
+
     def __init__(
         self,
         table_name: str,
@@ -20,6 +22,7 @@ class BaseRepository(DynamoDBHelper):
         gsi_key_schemas: List[Dict[str, str]],
     ):
         super().__init__(table_name, has_range_key, gsi_key_schemas)
+        self.table = BaseRepository.DYNAMO_DB.Table(table_name)
         self.table_name = table_name
         self.has_range_key = has_range_key
 
@@ -67,7 +70,7 @@ class BaseRepository(DynamoDBHelper):
             self.generate_range_key(item)
 
             condition_expression = (
-                None if no_condition else self.insert_condition_expression()
+                None if no_condition else self.insert_condition_expression
             )
 
             if condition_expression:
@@ -146,30 +149,20 @@ class BaseRepository(DynamoDBHelper):
 
     def query(
         self,
-        key_conditions: Dict[str, str],
+        key_condition: Dict[str, str],
         filter_condition: Optional[Dict[str, str]] = {},
         last_evaluated_key: Dict[str, Any] = None,
     ) -> list[Dict[str, Any]]:
         try:
-            index_name = None
-            key_condition_expression = None
-            filter_expression = None
-            expression_attribute_names = None
-            expression_attribute_values = None
+            index_name, key_condition_expression = self.build_key_schema_and_expression(
+                key_condition
+            )
 
-            if self.is_primary_key(key_conditions):
-                key_condition_expression = self.build_key_expression(key_conditions)
-            else:
-                index_name, key_condition_expression = (
-                    self.get_gsi_key_schema_and_expression(key_conditions)
-                )
+            filter_expression = self.build_filter_expression(filter_condition)
 
-            if filter_condition:
-                filter_expression = self.build_filter_expression(filter_condition)
-
-                expression_attribute_names, expression_attribute_values = (
-                    self.build_attribute_name_and_values(filter_condition)
-                )
+            expression_attribute_names, expression_attribute_values = (
+                self.build_attribute_name_and_values(filter_condition)
+            )
 
             items, last_evaluated_key = self.__query(
                 index_name,
@@ -187,7 +180,7 @@ class BaseRepository(DynamoDBHelper):
 
     def update(
         self,
-        key: Dict[str, str],
+        key_condition: Dict[str, str],
         filter_condition: Optional[Dict[str, str]] = {},
         update_items: Dict[str, Any] = {},
     ) -> Optional[str]:
@@ -199,12 +192,12 @@ class BaseRepository(DynamoDBHelper):
             self.build_attribute_name_and_values(update_items)
         )
 
-        if self.is_primary_key(key):
+        if self.is_primary_key(key_condition.keys()):
             condition_expression = self.build_filter_expression(filter_condition)
 
             return self.__update(
                 self.table.update_item,
-                key,
+                key_condition,
                 update_expression,
                 condition_expression,
                 expression_attribute_names,
@@ -216,22 +209,22 @@ class BaseRepository(DynamoDBHelper):
 
             while True:
                 items, last_evaluated_key = self.query(
-                    key, filter_condition, last_evaluated_key
+                    key_condition, filter_condition, last_evaluated_key
                 )
 
                 for item in items:
-                    update_key = self.build_update_key(item)
+                    key = self.build_primary_key_condition(item)
 
                     self.__update(
                         self.table.update_item,
-                        update_key,
+                        key,
                         update_expression,
                         None,
                         expression_attribute_names,
                         expression_attribute_values,
                     )
 
-                    updated_ids.append(update_key)
+                    updated_ids.append(key)
                 if not last_evaluated_key:
                     break
 
@@ -272,102 +265,3 @@ class BaseRepository(DynamoDBHelper):
             )
 
         return ids
-
-
-def create_table():
-    dynamodb = boto3.resource("dynamodb")
-
-    table = dynamodb.create_table(
-        TableName="test_table",
-        KeySchema=[
-            {"AttributeName": "id", "KeyType": "HASH"},  # Partition key
-            {"AttributeName": "id_range", "KeyType": "RANGE"},  # Partition key
-        ],
-        AttributeDefinitions=[
-            {"AttributeName": "id_range", "AttributeType": "S"},
-            {"AttributeName": "id", "AttributeType": "S"},
-        ],
-        ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
-        GlobalSecondaryIndexes=[
-            {
-                "IndexName": "id-index",
-                "KeySchema": [{"AttributeName": "id", "KeyType": "HASH"}],
-                "Projection": {"ProjectionType": "ALL"},
-                "ProvisionedThroughput": {
-                    "ReadCapacityUnits": 1,
-                    "WriteCapacityUnits": 1,
-                },
-            }
-        ],
-    )
-
-    table.wait_until_exists()
-    print("Tabela criada com sucesso!")
-    return table
-
-
-def test_operations():
-    # Criar a tabela
-    # create_table()
-
-    # Instanciar o repositório
-    repo = BaseRepository(
-        "test_table",
-        has_range_key=True,
-        gsi_key_schemas=[
-            {
-                "IndexName": "mdm-version_name-index",
-                "HASH": "mdm",
-                "RANGE": "version_name",
-            }
-        ],
-    )
-
-    # # Inserir um item
-    # item = {"id": "jp.com.sega.daytonausa", "mdm": "SF01", "version_name": "1.0.0"}
-    # repo.insert(item)
-    # item = {"id": "jp.com.sega.daytonausa", "mdm": "SF01", "version_name": "1.0.0"}
-    # repo.insert(item)
-    # Inserir múltiplos itens usando batch_insert
-    # items = [
-    #     {"id": "jp.com.sega.daytonausa", "mdm": "SF01", "version_name": "1.0.1"},
-    #     {"id": "jp.com.sega.daytonausa", "mdm": "SF02", "version_name": "1.0.2"},
-    #     {"id": "jp.com.sega.daytonausa", "mdm": "SF03", "version_name": "1.0.3"},
-    # ]
-    # repo.batch_insert(items)
-    # Atualizar o item
-
-    key = {"mdm": "SF01"}
-    update_items = {"mdm": "SF01", "version_name": "1.0.9"}
-
-    repo.update(key, update_items=update_items)
-
-    # Consultar o item
-
-    # key_condition = {"version_name": "1.0.1"}
-
-    # items = repo.query(key_condition)
-    # print("Itens consultados:", items)
-
-
-test_operations()
-
-dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table("test_table")
-
-
-try:
-    response = table.put_item(
-        Item={
-            "id_ts": "some_random_value323232",
-            "id": "your_id_value",
-            # other attributes...
-        },
-        ConditionExpression="attribute_not_exists(id)",
-    )
-    print("Item added successfully")
-except Exception as e:
-    if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
-        print("Item with the same id already exists")
-    else:
-        print("An error occurred:", e)
