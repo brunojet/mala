@@ -105,7 +105,7 @@ def create_table(
 
             global_secondary_indexes.append(
                 {
-                    "IndexName": f"{table_name.lower()}-{idx_name}-index",
+                    "IndexName": f"{idx_name}-index",
                     "KeySchema": gsi_key_schema,
                     "Projection": {"ProjectionType": "ALL"},
                     "ProvisionedThroughput": {
