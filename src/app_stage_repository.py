@@ -70,7 +70,6 @@ class AppStageRepository(BaseRepository):
 
         if item:
             self.__set_app_stage_cause(item, "approved")
-            self.__add_app_stage(item, AppStageRepository.STAGE_PRODUCTION)
 
     def reprove_pilot(self, package_name: str, mdm: str) -> Optional[str]:
         item = self.__get_app_stage(package_name, mdm, AppStageRepository.STAGE_PILOT)
