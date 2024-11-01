@@ -212,12 +212,13 @@ class BaseRepository(DynamoDBHelper):
             )
         else:
             last_evaluated_key = None
+            projection_expression = sorted(self.base_keys)
 
             while True:
                 keys, last_evaluated_key = self.query(
                     key_condition,
                     filter_condition,
-                    projection_expression=sorted(self.base_keys),
+                    projection_expression=projection_expression,
                     last_evaluated_key=last_evaluated_key,
                     limit=self.max_query_id_items,
                 )
