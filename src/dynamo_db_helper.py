@@ -79,9 +79,8 @@ class DynamoDBHelper(ABC):
 
         return key_expression
 
-    def __get_gsi_key_schema(
-        self, key_set: set[str], require_sort_key: bool
-    ) -> Optional[Dict[str, str]]:
+    def __get_gsi_key_schema(self, key_set: set[str]) -> Optional[Dict[str, str]]:
+        key_set_len = len(key_set)
         for gsi_key_schema in self.gsi_key_schemas:
             hash_key = gsi_key_schema.get(DynamoDBHelper.HASH)
             range_key = gsi_key_schema.get(DynamoDBHelper.RANGE)
@@ -89,7 +88,7 @@ class DynamoDBHelper(ABC):
             if hash_key not in key_set:
                 continue
 
-            if require_sort_key:
+            if key_set_len > 1:
                 if range_key and range_key in key_set:
                     return gsi_key_schema
             else:
@@ -98,9 +97,9 @@ class DynamoDBHelper(ABC):
     def __get_gsi_key_expression(
         self, key_condition: Dict[str, Any]
     ) -> Tuple[str, Any]:
-        key_set = set(key_condition.keys())
+        key_set = key_condition.keys()
 
-        gsi_key_schema = self.__get_gsi_key_schema(key_set, len(key_set) > 1)
+        gsi_key_schema = self.__get_gsi_key_schema(key_set)
 
         if gsi_key_schema is None:
             raise ValueError(
