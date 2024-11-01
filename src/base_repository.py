@@ -71,7 +71,7 @@ class BaseRepository(DynamoDBHelper):
         item: Dict[str, Any],
         overwrite: bool = False,
     ) -> Optional[str]:
-        self.add_range_key(item)
+        self.adjust_insert_item(item)
 
         params = {"Item": item}
 
@@ -86,16 +86,14 @@ class BaseRepository(DynamoDBHelper):
         self,
         index_name,
         key_condition_expression,
-        filter_expression,
-        last_evaluated_key,
+        filter_expression=None,
+        projection_expression: Optional[List[str]] = None,
+        last_evaluated_key=None,
         limit: Optional[int] = None,
     ) -> Any:
-        params = {}
-
         limit = self.max_read_items
 
-        if key_condition_expression:
-            params["KeyConditionExpression"] = key_condition_expression
+        params = {"KeyConditionExpression": key_condition_expression}
 
         if index_name:
             params["IndexName"] = index_name
@@ -105,6 +103,9 @@ class BaseRepository(DynamoDBHelper):
 
         if last_evaluated_key:
             params["ExclusiveStartKey"] = last_evaluated_key
+
+        if projection_expression:
+            params["ProjectionExpression"] = ", ".join(projection_expression)
 
         params["Limit"] = limit
 
@@ -144,6 +145,7 @@ class BaseRepository(DynamoDBHelper):
         self,
         key_condition: Dict[str, str] = None,
         filter_condition: Optional[Dict[str, str]] = {},
+        projection_expression: Optional[List[str]] = None,
         last_evaluated_key: Dict[str, Any] = None,
     ) -> list[Dict[str, Any]]:
         index_name, key_condition_expression = self.build_key_expression(key_condition)
@@ -154,6 +156,7 @@ class BaseRepository(DynamoDBHelper):
             index_name,
             key_condition_expression,
             filter_expression,
+            projection_expression,
             last_evaluated_key,
         )
 
@@ -188,13 +191,14 @@ class BaseRepository(DynamoDBHelper):
             last_evaluated_key = None
 
             while True:
-                items, last_evaluated_key = self.query(
-                    key_condition, filter_condition, last_evaluated_key
+                keys, last_evaluated_key = self.query(
+                    key_condition,
+                    filter_condition,
+                    projection_expression=sorted(self.base_keys),
+                    last_evaluated_key=last_evaluated_key,
                 )
 
-                for item in items:
-                    key = self.build_primary_key_condition(item)
-
+                for key in keys:
                     self.__update(
                         self.table.update_item,
                         key,

@@ -169,14 +169,14 @@ pilot_data = [
     {
         "id": "jp.com.sega.timecrisis",
         "mdm": "SF01",
-        "mdm_key": {"release_id": 3},
-        "version_name": "1.0.1",
+        "mdm_key": {"release_id": 5},
+        "version_name": "1.0.3",
     },
     {
         "id": "jp.com.sega.virtuacop",
         "mdm": "SF01",
-        "mdm_key": {"release_id": 4},
-        "version_name": "1.0.1",
+        "mdm_key": {"release_id": 6},
+        "version_name": "1.0.4",
     },
 ]
 
@@ -190,16 +190,14 @@ test = AppReleaseRepository("mala_app_release")
 #         version_name=data["version_name"],
 #     )
 
-# test.pilot_approve_app("jp.com.sega.virtuacop", "SF01", "1.0.1")
+test.pilot_approve_app("jp.com.sega.virtuacop", "SF01", "1.0.3")
 
-# test.pilot_approve_app("jp.com.sega.timecrisis", "SF01", "1.0.1")
-
-# test.rollout_app("jp.com.sega.virtuacop", "SF01", "1.0.1")
+test.pilot_approve_app("jp.com.sega.timecrisis", "SF01", "1.0.3")
 
 # test.rollout_app("jp.com.sega.virtuacop", "SF01", "1.0.1")
-test.rollout_app("jp.com.sega.timecrisis", "SF01", "1.0.1")
+
+test.rollout_app("jp.com.sega.virtuacop", "SF01", "1.0.3")
+test.rollout_app("jp.com.sega.timecrisis", "SF01", "1.0.3")
 
 x = test.get_all_apps()
 print(x)
-
-
