@@ -83,9 +83,7 @@ class DynamoDBHelper(ABC):
             return False
 
         if keys[0] == DynamoDBHelper.ID_KEY:
-            if len(keys) == 1:
-                return True
-            if len(keys) > 1 and keys[1] == DynamoDBHelper.ID_RANGE_KEY:
+            if len(keys) < 2 or keys[1] == DynamoDBHelper.ID_RANGE_KEY:
                 return True
 
         return False
