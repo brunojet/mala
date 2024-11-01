@@ -190,15 +190,11 @@ class DynamoDBHelper(ABC):
 
         return expression_attribute_names, expression_attribute_values
 
-    def adjust_insert_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
-        if self.has_range_key:
-            self.add_range_key(item)
-
+    def adjust_insert_item(self, item: Dict[str, Any]) -> None:
+        self.add_range_key(item)
         timestamp = datetime.utcnow().isoformat()
         item["created_at"] = timestamp
         item["updated_at"] = timestamp
-
-        return item
 
     def build_update_expression(self, update_items: Dict[str, Any]) -> str:
         if not update_items:
