@@ -47,7 +47,7 @@ class BaseRepository(DynamoDBHelper):
         self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
 
     @staticmethod
-    def __execute_tries(function, params):
+    def __execute_tries(function: callable, params):
         retries = 0
         backoff_factor: float = 1.5
 
@@ -118,13 +118,14 @@ class BaseRepository(DynamoDBHelper):
 
     def __update(
         self,
-        update_item_function,
-        key,
-        update_expression,
-        condition_expression,
-        expression_attribute_names,
-        expression_attribute_values,
-    ) -> Optional[str]:
+        update_item_function: callable,
+        key: Dict[str, Any],
+        update_expression: str,
+        condition_expression: Optional[str],
+        expression_attribute_names: Dict[str, str],
+        expression_attribute_values: Dict[str, Any],
+        updated_ids: List[Dict[str, Any]],
+    ) -> None:
         params = {
             "Key": key,
             "UpdateExpression": update_expression,
@@ -136,8 +137,7 @@ class BaseRepository(DynamoDBHelper):
             params["ConditionExpression"] = condition_expression
 
         self.__execute_tries(update_item_function, params)
-
-        return key
+        updated_ids.append(key)
 
     def __batch_update(
         self,
@@ -170,7 +170,7 @@ class BaseRepository(DynamoDBHelper):
         projection_expression: Optional[List[str]] = None,
         last_evaluated_key: Dict[str, Any] = None,
         limit: Optional[int] = None,
-    ) -> list[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], str]:
         index_name, key_condition_expression = self.build_key_expression(key_condition)
 
         filter_expression = self.build_filter_expression(filter_condition)
@@ -191,7 +191,7 @@ class BaseRepository(DynamoDBHelper):
         key_condition: Dict[str, str],
         filter_condition: Optional[Dict[str, str]] = {},
         update_items: Dict[str, Any] = {},
-    ) -> Optional[str]:
+    ) -> List[Dict[str, Any]]:
         updated_ids = []
 
         update_expression, expression_attribute_names, expression_attribute_values = (
@@ -208,9 +208,8 @@ class BaseRepository(DynamoDBHelper):
                 condition_expression,
                 expression_attribute_names,
                 expression_attribute_values,
+                updated_ids=updated_ids,
             )
-
-            updated_ids.append(response)
         else:
             last_evaluated_key = None
 
@@ -229,6 +228,7 @@ class BaseRepository(DynamoDBHelper):
                         update_expression,
                         expression_attribute_names,
                         expression_attribute_values,
+                        updated_ids=updated_ids,
                     )
 
                 if not last_evaluated_key:
