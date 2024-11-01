@@ -1,7 +1,6 @@
-import time
 from abc import ABC
 from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timezone
+from datetime import datetime
 from boto3.dynamodb.conditions import Key, Attr
 
 
@@ -34,23 +33,6 @@ class DynamoDBHelper(ABC):
                 raise ValueError(f"Invalid GSI key schema {gsi_key_schema}")
 
         self.insert_condition_expression = self.__build_insert_condition_expression()
-
-    @staticmethod
-    def milliseconds_of_current_second() -> int:
-        now = time.perf_counter()
-        milliseconds = int((now * 1000) % 1000)
-        return milliseconds
-
-    @staticmethod
-    def generate_randomized_range_key() -> int:
-        now = datetime.now(timezone.utc)
-        year = now.strftime("%y")
-        day_of_year = now.strftime("%j")
-        midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        seconds_since_midnight = int((now - midnight).total_seconds())
-        return int(
-            f"{year}{day_of_year}{seconds_since_midnight:05d}{DynamoDBHelper.milliseconds_of_current_second()}"
-        )
 
     @staticmethod
     def datetime_serializer(obj):
