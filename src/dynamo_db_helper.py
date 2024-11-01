@@ -78,18 +78,12 @@ class DynamoDBHelper(ABC):
         return condition_expression
 
     def is_primary_key(self, key_condition: Dict[str, Any]) -> bool:
-        keys = sorted(key_condition.keys())
-
-        len_keys = len(keys) if keys else 0
-
-        if 0 == len_keys:
+        if DynamoDBHelper.ID_KEY not in key_condition:
+            return False
+        elif self.has_range_key and DynamoDBHelper.ID_RANGE_KEY not in key_condition:
             return False
 
-        if keys[0] == DynamoDBHelper.ID_KEY:
-            if len_keys < 2 or keys[1] == DynamoDBHelper.ID_RANGE_KEY:
-                return True
-
-        return False
+        return True
 
     def is_sort_key_item(self, item: Dict[str, Any]) -> bool:
         for key in item.keys():
