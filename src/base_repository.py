@@ -9,6 +9,8 @@ DYNAMO_DB_CLIENT = boto3.client("dynamodb")
 
 DEFAULT_MAX_ITEM_SIZE = 256
 
+DEFAULT_QUERY_ID_ITEM_SIZE = 32
+
 EXECUTION_TRIES = 5
 
 
@@ -42,6 +44,7 @@ class BaseRepository(DynamoDBHelper):
 
         self.max_read_items = read_capacity_bytes // max_item_size
         self.max_write_items = write_capacity_bytes // max_item_size
+        self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
 
     @staticmethod
     def __execute_tries(function, params):
@@ -136,6 +139,25 @@ class BaseRepository(DynamoDBHelper):
 
         return key
 
+    def __batch_update(
+        self,
+        keys: List[Dict[str, Any]],
+        update_expression: str,
+        expression_attribute_names: Dict[str, str],
+        expression_attribute_values: Dict[str, Any],
+        updated_ids: List[Dict[str, Any]],
+    ) -> None:
+        with self.table.batch_writer() as batch:
+            for key in keys:
+                params = {
+                    "Key": key,
+                    "UpdateExpression": update_expression,
+                    "ExpressionAttributeNames": expression_attribute_names,
+                    "ExpressionAttributeValues": expression_attribute_values,
+                }
+                self.__execute_tries(batch.update_item, params)
+                updated_ids.append(key)
+
     def insert(
         self, item: Dict[str, Any] = [], overwrite: bool = False
     ) -> Optional[str]:
@@ -147,6 +169,7 @@ class BaseRepository(DynamoDBHelper):
         filter_condition: Optional[Dict[str, str]] = {},
         projection_expression: Optional[List[str]] = None,
         last_evaluated_key: Dict[str, Any] = None,
+        limit: Optional[int] = None,
     ) -> list[Dict[str, Any]]:
         index_name, key_condition_expression = self.build_key_expression(key_condition)
 
@@ -158,6 +181,7 @@ class BaseRepository(DynamoDBHelper):
             filter_expression,
             projection_expression,
             last_evaluated_key,
+            limit,
         )
 
         return items, last_evaluated_key
@@ -196,19 +220,17 @@ class BaseRepository(DynamoDBHelper):
                     filter_condition,
                     projection_expression=sorted(self.base_keys),
                     last_evaluated_key=last_evaluated_key,
+                    limit=self.max_query_id_items,
                 )
 
-                for key in keys:
-                    self.__update(
-                        self.table.update_item,
-                        key,
+                for i in range(0, len(keys), self.max_write_items):
+                    self.__batch_update(
+                        keys[i : i + self.max_write_items],
                         update_expression,
-                        None,
                         expression_attribute_names,
                         expression_attribute_values,
                     )
 
-                    updated_ids.append(key)
                 if not last_evaluated_key:
                     break
 
