@@ -201,7 +201,7 @@ class BaseRepository(DynamoDBHelper):
         if self.is_primary_key(key_condition):
             condition_expression = self.build_filter_expression(filter_condition)
 
-            response = self.__update(
+            self.__update(
                 self.table.update_item,
                 key_condition,
                 update_expression,
