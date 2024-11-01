@@ -49,7 +49,7 @@ class DynamoDBHelper(ABC):
         midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
         seconds_since_midnight = int((now - midnight).total_seconds())
         return int(
-            f"{year}{day_of_year}{seconds_since_midnight:05d}{BaseRepository.milliseconds_of_current_second()}"
+            f"{year}{day_of_year}{seconds_since_midnight:05d}{DynamoDBHelper.milliseconds_of_current_second()}"
         )
 
     @staticmethod
@@ -97,13 +97,14 @@ class DynamoDBHelper(ABC):
 
         return True
 
-    def build_primary_key_condition(self, item: Dict[str, str], remove_keys: bool False) -> Dict[str, Any]:
+    def build_primary_key_condition(
+        self, item: Dict[str, str], remove_keys: bool = False
+    ) -> Dict[str, Any]:
         primary_key = {key: item[key] for key in sorted(self.base_keys)}
         if remove_keys:
             for key in self.base_keys:
                 item.pop(key, None)
         return primary_key
-
 
     @staticmethod
     def __build_key_expression(keys: Dict[str, Any]) -> Attr:
@@ -161,21 +162,38 @@ class DynamoDBHelper(ABC):
         return index_name, key_condition_expression
 
     def build_key_expression(self, key_condition: Dict[str, Any]):
+        if not key_condition or len(key_condition) == 0:
+            return None, None
+
         if self.is_primary_key(key_condition):
             return None, self.__build_key_expression(key_condition)
         else:
             return self.__get_gsi_key_expression(key_condition)
 
     @staticmethod
-    def build_filter_expression(update_item: Dict[str, Any]) -> Optional[str]:
-        if not update_item:
-            return None
+    def build_filter_expression(update_item: Dict[str, Any] = {}) -> Optional[str]:
+        filter_expression = None
 
-        filter_expression = Attr(next(iter(update_item))).eq(
-            update_item[next(iter(update_item))]
-        )
-        for key, value in list(update_item.items())[1:]:
-            filter_expression &= Attr(key).eq(value)
+        for key, value in update_item.items():
+            key_and_operator = key.split("#")
+            key = key_and_operator[0]
+            operator = key_and_operator[1] if len(key_and_operator) > 1 else "eq"
+            condition = None
+
+            match operator:
+                case "eq":
+                    condition = Attr(key).eq(value)
+                case "ne":
+                    condition = Attr(key).ne(value)
+                case "in":
+                    condition = Attr(key).is_in(value)
+                case _:
+                    raise ValueError(f"Unsupported operator: {operator}")
+
+            if not filter_expression:
+                filter_expression = condition
+            else:
+                filter_expression &= condition
 
         return filter_expression
 
