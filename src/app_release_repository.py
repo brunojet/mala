@@ -11,7 +11,7 @@ GSI_KEY_SCHEMAS = [
         "RANGE": "version_name",
     },
     {"index_name": "id-mdm-index", "HASH": "id", "RANGE": "mdm"},
-    {"index_name": "stage-status-index", "HASH": "stage", "RANGE": "status"},
+    {"index_name": "stage-index", "HASH": "stage"},
 ]
 
 APPS_DEFAULT_STAGE = "production"
@@ -27,7 +27,7 @@ class AppReleaseRepository(BaseRepository):
             gsi_key_schemas=GSI_KEY_SCHEMAS,
         )
 
-    def __cancel_old_app(
+    def __cancel_previous_versions(
         self,
         package_name: str,
         mdm: str,
@@ -50,7 +50,7 @@ class AppReleaseRepository(BaseRepository):
         self, package_name: str, mdm: str, mdm_key: Dict[str, Any], version_name: str
     ) -> Optional[str]:
         # Cancela todas as versões pendentes do pacote
-        self.__cancel_old_app(
+        self.__cancel_previous_versions(
             package_name, mdm, version_name, "pilot", "pending", "canceled"
         )
 
@@ -70,7 +70,7 @@ class AppReleaseRepository(BaseRepository):
         self, package_name: str, mdm: str, version_name: str
     ) -> Optional[str]:
         # Cancela todas as versões aprovadas do pacote
-        self.__cancel_old_app(
+        self.__cancel_previous_versions(
             package_name, mdm, version_name, "pilot", "approved", "canceled"
         )
 
@@ -91,7 +91,7 @@ class AppReleaseRepository(BaseRepository):
         )
 
     def rollout_app(self, package_name: str, mdm: str, version_name: str) -> None:
-        self.__cancel_old_app(
+        self.__cancel_previous_versions(
             package_name, mdm, version_name, "production", "rollout", "deprecated"
         )
         self.update(
@@ -197,6 +197,9 @@ test = AppReleaseRepository("mala_app_release")
 # test.rollout_app("jp.com.sega.virtuacop", "SF01", "1.0.1")
 
 # test.rollout_app("jp.com.sega.virtuacop", "SF01", "1.0.1")
+test.rollout_app("jp.com.sega.timecrisis", "SF01", "1.0.1")
 
 x = test.get_all_apps()
 print(x)
+
+

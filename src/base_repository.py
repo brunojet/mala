@@ -4,7 +4,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from botocore.exceptions import ClientError
 from dynamo_db_helper import DynamoDBHelper
 
-DYNAMO_DB = boto3.resource("dynamodb")
+DYNAMO_DB_RESOURCE = boto3.resource("dynamodb")
+DYNAMO_DB_CLIENT = boto3.client("dynamodb")
 
 DEFAULT_MAX_ITEM_SIZE = 256
 
@@ -25,8 +26,8 @@ class BaseRepository(DynamoDBHelper):
 
     def __init_table(self, table_name, max_item_size) -> Tuple[int, int]:
         self.table_name = table_name
-        self.table = DYNAMO_DB.Table(table_name)
-        table_description = self.table.describe_table(TableName=self.table_name)
+        self.table = DYNAMO_DB_RESOURCE.Table(table_name)
+        table_description = DYNAMO_DB_CLIENT.describe_table(TableName=table_name)
         read_capacity_units = table_description["Table"]["ProvisionedThroughput"][
             "ReadCapacityUnits"
         ]
