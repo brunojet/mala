@@ -85,13 +85,6 @@ class DynamoDBHelper(ABC):
 
         return True
 
-    def is_sort_key_item(self, item: Dict[str, Any]) -> bool:
-        for key in item.keys():
-            if key not in self.range_keys:
-                return False
-
-        return True
-
     def build_primary_key_condition(
         self, item: Dict[str, str], remove_keys: bool = False
     ) -> Dict[str, Any]:
@@ -219,9 +212,6 @@ class DynamoDBHelper(ABC):
     def build_update_expression(self, update_items: Dict[str, Any]) -> str:
         if not update_items:
             raise ValueError("Update items cannot be empty.")
-
-        if self.is_sort_key_item(update_items):
-            self.add_range_key(update_items)
 
         timestamp = datetime.utcnow().isoformat()
         update_items["updated_at"] = timestamp
