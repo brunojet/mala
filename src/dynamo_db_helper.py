@@ -85,15 +85,6 @@ class DynamoDBHelper(ABC):
 
         return True
 
-    def build_primary_key_condition(
-        self, item: Dict[str, str], remove_keys: bool = False
-    ) -> Dict[str, Any]:
-        primary_key = {key: item[key] for key in sorted(self.base_keys)}
-        if remove_keys:
-            for key in self.base_keys:
-                item.pop(key, None)
-        return primary_key
-
     @staticmethod
     def __build_key_expression(keys: Dict[str, Any]) -> Attr:
         key_expression = None
