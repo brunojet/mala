@@ -10,6 +10,8 @@ class TestDynamoDBHelper(DynamoDBHelper):
 @pytest.fixture
 def dynamo_db_helper():
     return TestDynamoDBHelper(
+        table_name="test_table",
+        max_item_size=256,
         has_range_key=True,
         range_key_items=["range_key1", "range_key2"],
         gsi_key_schemas=[

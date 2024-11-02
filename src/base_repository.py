@@ -1,15 +1,7 @@
-import boto3
 import time
 from typing import List, Dict, Any, Optional, Tuple
 from botocore.exceptions import ClientError
-from dynamo_db_helper import DynamoDBHelper
-
-DYNAMO_DB_RESOURCE = boto3.resource("dynamodb")
-DYNAMO_DB_CLIENT = boto3.client("dynamodb")
-
-DEFAULT_MAX_ITEM_SIZE = 256
-
-DEFAULT_QUERY_ID_ITEM_SIZE = 32
+from dynamo_db_helper import DynamoDBHelper, DEFAULT_MAX_ITEM_SIZE
 
 EXECUTION_TRIES = 5
 
@@ -23,28 +15,9 @@ class BaseRepository(DynamoDBHelper):
         range_key_items: List[str] = [],
         gsi_key_schemas: List[Dict[str, str]] = [],
     ):
-        super().__init__(has_range_key, range_key_items, gsi_key_schemas)
-        self.__init_table(table_name, max_item_size)
-
-    def __init_table(self, table_name: str, max_item_size: int) -> None:
-        self.table_name = table_name
-        self.table = DYNAMO_DB_RESOURCE.Table(table_name)
-        table_description = DYNAMO_DB_CLIENT.describe_table(TableName=table_name)
-        read_capacity_units = table_description["Table"]["ProvisionedThroughput"][
-            "ReadCapacityUnits"
-        ]
-        write_capacity_units = table_description["Table"]["ProvisionedThroughput"][
-            "WriteCapacityUnits"
-        ]
-        read_capacity_bytes = read_capacity_units * 4 * 1024
-        write_capacity_bytes = write_capacity_units * 1024
-
-        if read_capacity_bytes < max_item_size or write_capacity_bytes < max_item_size:
-            raise ValueError("Max item size is bigger than read or write capacity")
-
-        self.max_read_items = read_capacity_bytes // max_item_size
-        self.max_write_items = write_capacity_bytes // max_item_size
-        self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
+        super().__init__(
+            table_name, max_item_size, has_range_key, range_key_items, gsi_key_schemas
+        )
 
     @staticmethod
     def __execute_tries(function: callable, params: Dict[str, Any]) -> Any:
