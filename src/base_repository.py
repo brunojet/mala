@@ -1,6 +1,4 @@
-import time
 from typing import List, Dict, Any, Optional, Tuple
-from botocore.exceptions import ClientError
 from dynamo_db_helper import DynamoDBHelper, DEFAULT_MAX_ITEM_SIZE
 
 EXECUTION_TRIES = 5
@@ -19,28 +17,6 @@ class BaseRepository(DynamoDBHelper):
             table_name, max_item_size, has_range_key, range_key_items, gsi_key_schemas
         )
 
-    @staticmethod
-    def __execute_tries(function: callable, params: Dict[str, Any]) -> Any:
-        retries = 0
-        backoff_factor: float = 1.5
-
-        while retries < EXECUTION_TRIES:
-            try:
-                return function(**params)
-            except ClientError as e:
-                if (
-                    e.response["Error"]["Code"]
-                    == "ProvisionedThroughputExceededException"
-                ):
-                    retries += 1
-                    wait_time = backoff_factor**retries
-                    print(
-                        f"ProvisionedThroughputExceededException: Retrying in {wait_time} seconds..."
-                    )
-                    time.sleep(wait_time)
-                else:
-                    raise e
-
     def __insert(
         self,
         put_item_function,
@@ -54,7 +30,7 @@ class BaseRepository(DynamoDBHelper):
         if not overwrite:
             params["ConditionExpression"] = self.insert_condition_expression
 
-        self.__execute_tries(put_item_function, params)
+        self.execute_tries(put_item_function, params)
 
         return item.get("id")
 
@@ -93,7 +69,7 @@ class BaseRepository(DynamoDBHelper):
 
         params["Limit"] = limit
 
-        response = self.__execute_tries(self.table.query, params)
+        response = self.execute_tries(self.table.query, params)
 
         return response.get("Items", []), response.get("LastEvaluatedKey")
 
@@ -117,7 +93,7 @@ class BaseRepository(DynamoDBHelper):
         if condition_expression:
             params["ConditionExpression"] = condition_expression
 
-        self.__execute_tries(update_item_function, params)
+        self.execute_tries(update_item_function, params)
         updated_ids.append(key)
 
     def __batch_update(
@@ -136,7 +112,7 @@ class BaseRepository(DynamoDBHelper):
                     "ExpressionAttributeNames": expression_attribute_names,
                     "ExpressionAttributeValues": expression_attribute_values,
                 }
-                self.__execute_tries(batch.update_item, params)
+                self.execute_tries(batch.update_item, params)
                 updated_ids.append(key)
 
     def insert(

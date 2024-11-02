@@ -1,8 +1,10 @@
 import boto3
+import time
 from abc import ABC
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from boto3.dynamodb.conditions import Key, Attr
+from botocore.exceptions import ClientError
 
 DYNAMO_DB_RESOURCE = boto3.resource("dynamodb")
 DYNAMO_DB_CLIENT = boto3.client("dynamodb")
@@ -16,6 +18,8 @@ PRIMARY_RANGE_KEY = "id_range"
 GSI_INDEX_NAME_KEY = "index_name"
 GSI_HASH_KEY = "HASH"
 GSI_RANGE_KEY = "RANGE"
+
+EXECUTION_TRIES = 5
 
 RESERVED_WORDS = ["status"]
 
@@ -73,6 +77,28 @@ class DynamoDBHelper(ABC):
         self.max_read_items = read_capacity_bytes // max_item_size
         self.max_write_items = write_capacity_bytes // max_item_size
         self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
+
+    @staticmethod
+    def execute_tries(function: callable, params: Dict[str, Any]) -> Any:
+        retries = 0
+        backoff_factor: float = 1.5
+
+        while retries < EXECUTION_TRIES:
+            try:
+                return function(**params)
+            except ClientError as e:
+                if (
+                    e.response["Error"]["Code"]
+                    == "ProvisionedThroughputExceededException"
+                ):
+                    retries += 1
+                    wait_time = backoff_factor**retries
+                    print(
+                        f"ProvisionedThroughputExceededException: Retrying in {wait_time} seconds..."
+                    )
+                    time.sleep(wait_time)
+                else:
+                    raise e
 
     @staticmethod
     def datetime_serializer(obj):
