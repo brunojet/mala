@@ -13,8 +13,6 @@ DEFAULT_QUERY_ID_ITEM_SIZE = 32
 
 EXECUTION_TRIES = 5
 
-RESERVED_WORDS = ["status"]
-
 
 class BaseRepository(DynamoDBHelper):
     def __init__(
@@ -87,28 +85,6 @@ class BaseRepository(DynamoDBHelper):
 
         return item.get("id")
 
-    def __build_projection_expression(
-        self, projection_expression: Optional[List[str]]
-    ) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
-        if not projection_expression or len(projection_expression) == 0:
-            return None, None
-
-        expression_attribute_names = {}
-        final_projection_expression = []
-
-        for item in projection_expression:
-            if item in RESERVED_WORDS:
-                placeholder = f"#{item}"
-                final_projection_expression.append(placeholder)
-                expression_attribute_names[placeholder] = item
-            else:
-                final_projection_expression.append(item)
-
-        return (
-            ", ".join(final_projection_expression),
-            expression_attribute_names if expression_attribute_names else None,
-        )
-
     def __query(
         self,
         index_name: Optional[str],
@@ -133,7 +109,7 @@ class BaseRepository(DynamoDBHelper):
             params["ExclusiveStartKey"] = last_evaluated_key
 
         projection_expression, expression_attribute_names = (
-            self.__build_projection_expression(projection_expression)
+            self.build_projection_expression(projection_expression)
         )
 
         if projection_expression:

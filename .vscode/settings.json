@@ -1,5 +1,5 @@
 {
-    "python.analysis.extraPaths": ["./src"],
+    "python.analysis.extraPaths": ["./src", "./.venv/Lib/site-packages"],
     "python.testing.pytestArgs": [
         "tests"
     ],

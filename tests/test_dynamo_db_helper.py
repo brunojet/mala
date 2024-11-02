@@ -65,3 +65,12 @@ def test_get_gsi_key_expression(dynamo_db_helper):
     index_name, key_expression = dynamo_db_helper._get_gsi_key_expression(key_condition)
     assert index_name == "GSI1"
     assert key_expression is not None
+
+
+def test_build_projection_expression():
+    projection_expression = ["id", "name", "status"]
+    expression, attribute_names = TestDynamoDBHelper.build_projection_expression(
+        projection_expression
+    )
+    assert expression == "id, name, #status"
+    assert attribute_names == {"#status": "status"}
