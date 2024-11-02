@@ -32,7 +32,7 @@ class BaseRepository(DynamoDBHelper):
 
         self.execute_tries(put_item_function, params)
 
-        return item.get("id")
+        return self.build_primary_key(item)
 
     def __query(
         self,

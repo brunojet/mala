@@ -79,7 +79,7 @@ class DynamoDBHelper(ABC):
         self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
 
     @staticmethod
-    def execute_tries(function: callable, params: Dict[str, Any]) -> Any:
+    def execute_tries(function: callable, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         retries = 0
         backoff_factor: float = 1.5
 
@@ -132,6 +132,14 @@ class DynamoDBHelper(ABC):
             return False
 
         return True
+
+    def build_primary_key(self, key: Dict[str, Any]) -> Dict[str, Any]:
+        primary_key = {PRIMARY_HASH_KEY: key[PRIMARY_HASH_KEY]}
+
+        if self.has_range_key:
+            primary_key[PRIMARY_RANGE_KEY] = key[PRIMARY_RANGE_KEY]
+
+        return primary_key
 
     @staticmethod
     def _build_key_expression(keys: Dict[str, Any]) -> Attr:
