@@ -28,7 +28,7 @@ class BaseRepository(DynamoDBHelper):
         super().__init__(has_range_key, range_key_items, gsi_key_schemas)
         self.__init_table(table_name, max_item_size)
 
-    def __init_table(self, table_name, max_item_size) -> Tuple[int, int]:
+    def __init_table(self, table_name: str, max_item_size: int) -> None:
         self.table_name = table_name
         self.table = DYNAMO_DB_RESOURCE.Table(table_name)
         table_description = DYNAMO_DB_CLIENT.describe_table(TableName=table_name)
@@ -49,7 +49,7 @@ class BaseRepository(DynamoDBHelper):
         self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
 
     @staticmethod
-    def __execute_tries(function: callable, params):
+    def __execute_tries(function: callable, params: Dict[str, Any]) -> Any:
         retries = 0
         backoff_factor: float = 1.5
 
@@ -74,7 +74,7 @@ class BaseRepository(DynamoDBHelper):
         self,
         put_item_function,
         item: Dict[str, Any],
-        overwrite: bool = False,
+        overwrite: bool,
     ) -> Optional[str]:
         self.adjust_insert_item(item)
 
@@ -93,34 +93,35 @@ class BaseRepository(DynamoDBHelper):
         if not projection_expression or len(projection_expression) == 0:
             return None, None
 
-        expression_attribute_names = None
+        expression_attribute_names = {}
+        final_projection_expression = []
 
-        reserved_words = [
-            item for item in projection_expression if item in RESERVED_WORDS
-        ]
-        projection_expression = [
-            item for item in projection_expression if item not in reserved_words
-        ]
-        projection_expression.extend(f"#{item}" for item in reserved_words)
-        expression_attribute_names = {f"#{item}": item for item in reserved_words}
+        for item in projection_expression:
+            if item in RESERVED_WORDS:
+                placeholder = f"#{item}"
+                final_projection_expression.append(placeholder)
+                expression_attribute_names[placeholder] = item
+            else:
+                final_projection_expression.append(item)
 
         return (
-            ", ".join(projection_expression),
-            expression_attribute_names,
+            ", ".join(final_projection_expression),
+            expression_attribute_names if expression_attribute_names else None,
         )
 
     def __query(
         self,
-        index_name,
-        key_condition_expression,
-        filter_expression=None,
-        projection_expression: Optional[List[str]] = None,
-        last_evaluated_key=None,
-        limit: Optional[int] = None,
-    ) -> Any:
-        limit = self.max_read_items
+        index_name: Optional[str],
+        key_condition_expression: str,
+        filter_expression: Optional[str],
+        projection_expression: Optional[List[str]],
+        last_evaluated_key: Optional[Dict[str, Any]],
+        limit: Optional[int],
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        if limit is None:
+            limit = self.max_read_items
 
-        params = {"KeyConditionExpression": key_condition_expression}
+        params: Dict[str, Any] = {"KeyConditionExpression": key_condition_expression}
 
         if index_name:
             params["IndexName"] = index_name
