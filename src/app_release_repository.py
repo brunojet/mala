@@ -31,6 +31,7 @@ APPS_DEFAULT_STATUS = [STATUS_ROLLOUT]
 APP_DEFAULT_STATUS = [STATUS_PENDING, STATUS_APPROVED, STATUS_ROLLOUT]
 
 
+
 class AppReleaseRepository(BaseRepository):
     def __init__(self, table_name: str):
         super().__init__(

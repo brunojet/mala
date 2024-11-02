@@ -79,7 +79,9 @@ class DynamoDBHelper(ABC):
         self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
 
     @staticmethod
-    def execute_tries(function: callable, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def execute_tries(
+        function: callable, params: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         retries = 0
         backoff_factor: float = 1.5
 

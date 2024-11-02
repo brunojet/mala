@@ -1,4 +1,6 @@
 import pytest
+from unittest.mock import MagicMock, patch
+from mock_dynamo_db import dynamodb_with_range_key, DESCRIBLE_TABLE_MOCK
 from dynamo_db_helper import DynamoDBHelper, PRIMARY_HASH_KEY, PRIMARY_RANGE_KEY
 
 
@@ -8,16 +10,19 @@ class TestDynamoDBHelper(DynamoDBHelper):
 
 
 @pytest.fixture
-def dynamo_db_helper():
-    return TestDynamoDBHelper(
-        table_name="test_table",
-        max_item_size=256,
-        has_range_key=True,
-        range_key_items=["range_key1", "range_key2"],
-        gsi_key_schemas=[
-            {"index_name": "GSI1", "HASH": "gsi_hash_key", "RANGE": "gsi_range_key"}
-        ],
-    )
+def dynamo_db_helper(dynamodb_with_range_key):
+    with patch.object(
+        dynamodb_with_range_key.meta.client, "describe_table", return_value=DESCRIBLE_TABLE_MOCK
+    ):
+        yield TestDynamoDBHelper(
+            table_name="test_table",
+            max_item_size=256,
+            has_range_key=True,
+            range_key_items=["range_key1", "range_key2"],
+            gsi_key_schemas=[
+                {"index_name": "GSI1", "HASH": "gsi_hash_key", "RANGE": "gsi_range_key"}
+            ],
+        )
 
 
 def test_init(dynamo_db_helper):
