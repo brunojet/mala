@@ -34,7 +34,7 @@ class DynamoDBHelper(ABC):
             ):
                 raise ValueError(f"Invalid GSI key schema {gsi_key_schema}")
 
-        self.insert_condition_expression = self.__build_insert_condition_expression()
+        self.insert_condition_expression = self._build_insert_condition_expression()
 
     @staticmethod
     def datetime_serializer(obj):
@@ -53,7 +53,7 @@ class DynamoDBHelper(ABC):
         if len(range_key_values) > 0:
             item[PRIMARY_RANGE_KEY] = "#".join(range_key_values)
 
-    def __build_insert_condition_expression(self) -> Attr:
+    def _build_insert_condition_expression(self) -> Attr:
         condition_expression = Attr(PRIMARY_HASH_KEY).not_exists()
 
         if self.has_range_key:
@@ -70,7 +70,7 @@ class DynamoDBHelper(ABC):
         return True
 
     @staticmethod
-    def __build_key_expression(keys: Dict[str, Any]) -> Attr:
+    def _build_key_expression(keys: Dict[str, Any]) -> Attr:
         key_expression = None
 
         for key, value in keys.items():
@@ -81,7 +81,7 @@ class DynamoDBHelper(ABC):
 
         return key_expression
 
-    def __get_gsi_key_schema(self, key_set: set[str]) -> Optional[Dict[str, str]]:
+    def _get_gsi_key_schema(self, key_set: set[str]) -> Optional[Dict[str, str]]:
         has_range_key = len(key_set) > 1
 
         for gsi_key_schema in self.gsi_key_schemas:
@@ -97,12 +97,10 @@ class DynamoDBHelper(ABC):
             else:
                 return gsi_key_schema
 
-    def __get_gsi_key_expression(
-        self, key_condition: Dict[str, Any]
-    ) -> Tuple[str, Any]:
+    def _get_gsi_key_expression(self, key_condition: Dict[str, Any]) -> Tuple[str, Any]:
         key_set = key_condition.keys()
 
-        gsi_key_schema = self.__get_gsi_key_schema(key_set)
+        gsi_key_schema = self._get_gsi_key_schema(key_set)
 
         if gsi_key_schema is None:
             raise ValueError(
@@ -120,7 +118,7 @@ class DynamoDBHelper(ABC):
         if range_condition:
             key_condition[range_key] = range_condition
 
-        key_condition_expression = self.__build_key_expression(key_condition)
+        key_condition_expression = self._build_key_expression(key_condition)
 
         return index_name, key_condition_expression
 
@@ -129,9 +127,9 @@ class DynamoDBHelper(ABC):
             return None, None
 
         if self.is_primary_key(key_condition):
-            return None, self.__build_key_expression(key_condition)
+            return None, self._build_key_expression(key_condition)
         else:
-            return self.__get_gsi_key_expression(key_condition)
+            return self._get_gsi_key_expression(key_condition)
 
     @staticmethod
     def build_filter_expression(update_item: Dict[str, Any] = {}) -> Optional[str]:
@@ -173,7 +171,7 @@ class DynamoDBHelper(ABC):
         return filter_expression
 
     @staticmethod
-    def __build_attribute_name_and_values(
+    def _build_attribute_name_and_values(
         update_items: Dict[str, Any],
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, str]]]:
         if not update_items or len(update_items) == 0:
@@ -207,7 +205,7 @@ class DynamoDBHelper(ABC):
         )
 
         expression_attribute_names, expression_attribute_values = (
-            self.__build_attribute_name_and_values(update_items)
+            self._build_attribute_name_and_values(update_items)
         )
 
         return (
