@@ -3,32 +3,34 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from boto3.dynamodb.conditions import Key, Attr
 
+PRIMARY_HASH_KEY = "id"
+PRIMARY_RANGE_KEY = "id_range"
+
+GSI_INDEX_NAME_KEY = "index_name"
+GSI_HASH_KEY = "HASH"
+GSI_RANGE_KEY = "RANGE"
+
 
 class DynamoDBHelper(ABC):
-    INDEX_NAME = "index_name"
-    HASH = "HASH"
-    RANGE = "RANGE"
-    ID_KEY = "id"
-    ID_RANGE_KEY = "id_range"
 
     def __init__(
         self,
-        has_range_key: bool,
-        range_key_items: list[str],
-        gsi_key_schemas: List[Dict[str, str]],
+        has_range_key: bool = False,
+        range_key_items: List[str] = [],
+        gsi_key_schemas: List[Dict[str, str]] = [],
     ):
-        self.base_keys = {DynamoDBHelper.ID_KEY}
+        self.primary_keys: List[str] = [PRIMARY_HASH_KEY]
         self.has_range_key: bool = has_range_key or len(range_key_items) > 0
-        self.range_keys: list[str] = range_key_items
+        self.range_key_items: list[str] = range_key_items
         self.gsi_key_schemas: List[Dict[str, str]] = gsi_key_schemas
 
         if self.has_range_key:
-            self.base_keys.add(DynamoDBHelper.ID_RANGE_KEY)
+            self.primary_keys.append(PRIMARY_RANGE_KEY)
 
         for gsi_key_schema in gsi_key_schemas:
             if (
-                DynamoDBHelper.INDEX_NAME not in gsi_key_schema
-                or DynamoDBHelper.HASH not in gsi_key_schema
+                GSI_INDEX_NAME_KEY not in gsi_key_schema
+                or GSI_HASH_KEY not in gsi_key_schema
             ):
                 raise ValueError(f"Invalid GSI key schema {gsi_key_schema}")
 
@@ -41,28 +43,28 @@ class DynamoDBHelper(ABC):
         raise TypeError(f"Type {type(obj)} not serializable")
 
     def add_range_key(self, item: Dict[str, str]) -> None:
-        if len(self.range_keys) == 0:
+        if len(self.range_key_items) == 0:
             return
 
         range_key_values: List[str] = [
-            item[key] for key in self.range_keys if key in item
+            item[key] for key in self.range_key_items if key in item
         ]
 
         if len(range_key_values) > 0:
-            item[DynamoDBHelper.ID_RANGE_KEY] = "#".join(range_key_values)
+            item[PRIMARY_RANGE_KEY] = "#".join(range_key_values)
 
     def __build_insert_condition_expression(self) -> Attr:
-        condition_expression = Attr(DynamoDBHelper.ID_KEY).not_exists()
+        condition_expression = Attr(PRIMARY_HASH_KEY).not_exists()
 
         if self.has_range_key:
-            condition_expression &= Attr(DynamoDBHelper.ID_RANGE_KEY).not_exists()
+            condition_expression &= Attr(PRIMARY_RANGE_KEY).not_exists()
 
         return condition_expression
 
     def is_primary_key(self, key_condition: Dict[str, Any]) -> bool:
-        if DynamoDBHelper.ID_KEY not in key_condition:
+        if PRIMARY_HASH_KEY not in key_condition:
             return False
-        elif self.has_range_key and DynamoDBHelper.ID_RANGE_KEY not in key_condition:
+        elif self.has_range_key and PRIMARY_RANGE_KEY not in key_condition:
             return False
 
         return True
@@ -83,8 +85,8 @@ class DynamoDBHelper(ABC):
         has_range_key = len(key_set) > 1
 
         for gsi_key_schema in self.gsi_key_schemas:
-            hash_key = gsi_key_schema.get(DynamoDBHelper.HASH)
-            range_key = gsi_key_schema.get(DynamoDBHelper.RANGE)
+            hash_key = gsi_key_schema.get(GSI_HASH_KEY)
+            range_key = gsi_key_schema.get(GSI_RANGE_KEY)
 
             if hash_key not in key_set:
                 continue
@@ -107,9 +109,9 @@ class DynamoDBHelper(ABC):
                 f"GSI key schema not found for the given update condition {key_set}."
             )
 
-        index_name = gsi_key_schema.get(DynamoDBHelper.INDEX_NAME)
-        hash_key = gsi_key_schema.get(DynamoDBHelper.HASH)
-        range_key = gsi_key_schema.get(DynamoDBHelper.RANGE)
+        index_name = gsi_key_schema.get(GSI_INDEX_NAME_KEY)
+        hash_key = gsi_key_schema.get(GSI_HASH_KEY)
+        range_key = gsi_key_schema.get(GSI_RANGE_KEY)
         hash_condition = key_condition.get(hash_key)
         range_condition = key_condition.get(range_key)
 
@@ -148,6 +150,18 @@ class DynamoDBHelper(ABC):
                     condition = Attr(key).ne(value)
                 case "in":
                     condition = Attr(key).is_in(value)
+                case "lt":
+                    condition = Attr(key).lt(value)
+                case "lte":
+                    condition = Attr(key).lte(value)
+                case "gt":
+                    condition = Attr(key).gt(value)
+                case "gte":
+                    condition = Attr(key).gte(value)
+                case "between":
+                    condition = Attr(key).between(value[0], value[1])
+                case "begins_with":
+                    condition = Attr(key).begins_with(value)
                 case _:
                     raise ValueError(f"Unsupported operator: {operator}")
 
@@ -159,15 +173,15 @@ class DynamoDBHelper(ABC):
         return filter_expression
 
     @staticmethod
-    def build_attribute_name_and_values(
-        update_items: Dict[str, Any]
+    def __build_attribute_name_and_values(
+        update_items: Dict[str, Any],
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, str]]]:
-        if not update_items:
-            return None, None
+        if not update_items or len(update_items) == 0:
+            raise ValueError("Update items cannot be empty.")
 
         expression_attribute_names = {f"#{key}": key for key in update_items}
         expression_attribute_values = {
-            f":val{idx}": value for idx, (key, value) in enumerate(update_items.items())
+            f":val{idx}": value for idx, (_, value) in enumerate(update_items.items())
         }
 
         return expression_attribute_names, expression_attribute_values
@@ -179,7 +193,7 @@ class DynamoDBHelper(ABC):
         item["updated_at"] = timestamp
 
     def build_update_expression(self, update_items: Dict[str, Any]) -> str:
-        if not update_items:
+        if not update_items or len(update_items) == 0:
             raise ValueError("Update items cannot be empty.")
 
         timestamp = datetime.utcnow().isoformat()
@@ -193,7 +207,7 @@ class DynamoDBHelper(ABC):
         )
 
         expression_attribute_names, expression_attribute_values = (
-            DynamoDBHelper.build_attribute_name_and_values(update_items)
+            self.__build_attribute_name_and_values(update_items)
         )
 
         return (

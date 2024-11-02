@@ -13,6 +13,8 @@ DEFAULT_QUERY_ID_ITEM_SIZE = 32
 
 EXECUTION_TRIES = 5
 
+RESERVED_WORDS = ["status"]
+
 
 class BaseRepository(DynamoDBHelper):
     def __init__(
@@ -85,6 +87,28 @@ class BaseRepository(DynamoDBHelper):
 
         return item.get("id")
 
+    def __build_projection_expression(
+        self, projection_expression: Optional[List[str]]
+    ) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+        if not projection_expression or len(projection_expression) == 0:
+            return None, None
+
+        expression_attribute_names = None
+
+        reserved_words = [
+            item for item in projection_expression if item in RESERVED_WORDS
+        ]
+        projection_expression = [
+            item for item in projection_expression if item not in reserved_words
+        ]
+        projection_expression.extend(f"#{item}" for item in reserved_words)
+        expression_attribute_names = {f"#{item}": item for item in reserved_words}
+
+        return (
+            ", ".join(projection_expression),
+            expression_attribute_names,
+        )
+
     def __query(
         self,
         index_name,
@@ -107,8 +131,15 @@ class BaseRepository(DynamoDBHelper):
         if last_evaluated_key:
             params["ExclusiveStartKey"] = last_evaluated_key
 
+        projection_expression, expression_attribute_names = (
+            self.__build_projection_expression(projection_expression)
+        )
+
         if projection_expression:
-            params["ProjectionExpression"] = ", ".join(projection_expression)
+            params["ProjectionExpression"] = projection_expression
+
+        if expression_attribute_names:
+            params["ExpressionAttributeNames"] = expression_attribute_names
 
         params["Limit"] = limit
 
@@ -212,13 +243,12 @@ class BaseRepository(DynamoDBHelper):
             )
         else:
             last_evaluated_key = None
-            projection_expression = sorted(self.base_keys)
 
             while True:
                 keys, last_evaluated_key = self.query(
                     key_condition,
                     filter_condition,
-                    projection_expression=projection_expression,
+                    projection_expression=self.primary_keys,
                     last_evaluated_key=last_evaluated_key,
                     limit=self.max_query_id_items,
                 )
