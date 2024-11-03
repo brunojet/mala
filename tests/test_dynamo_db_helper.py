@@ -3,16 +3,16 @@ import pytest
 from typing import Any, Tuple
 from moto import mock_aws
 from unittest.mock import patch
-from dynamo_db_utils import create_table, DESCRIBLE_TABLE
+from botocore.exceptions import ClientError
+from dynamo_db_utils import create_table
 from dynamo_db_helper import DynamoDBHelper, PRIMARY_HASH_KEY, PRIMARY_RANGE_KEY
 
 
 @pytest.fixture
 def dynamodb():
     with mock_aws():
+        table_name = "test_table"
         resource = boto3.resource("dynamodb", region_name="us-east-1")
-        client = boto3.client("dynamodb", region_name="us-east-1")
-
         key_schema = {"HASH": "id", "RANGE": "id_range"}
         gsi_key_schemas = [
             {
@@ -21,19 +21,18 @@ def dynamodb():
                 "RANGE": "gsi_range_key",
             },
         ]
-        table = create_table(resource, key_schema, gsi_key_schemas)
 
-        yield client, table
+        yield create_table(table_name, resource, key_schema, gsi_key_schemas)
 
 
 @pytest.fixture
 def dynamo_db_helper(dynamodb: Tuple[boto3.client, Any]):
-    client, table = dynamodb
+    client, table, describle_table = dynamodb
 
     with patch.object(
         client,
         "describe_table",
-        return_value=DESCRIBLE_TABLE,
+        return_value=describle_table,
     ):
         repo = DynamoDBHelper(
             table_name="test_table",
@@ -112,5 +111,77 @@ def test_build_projection_expression():
     expression, attribute_names = DynamoDBHelper.build_projection_expression(
         projection_expression
     )
-    assert expression == "id, name, #status"
-    assert attribute_names == {"#status": "status"}
+    assert expression == "id, #name, #status"
+    assert attribute_names == {"#name": "name", "#status": "status"}
+
+
+class MockProvisionedThroughputExceededException(ClientError):
+    def __init__(self):
+        super().__init__(
+            {
+                "Error": {
+                    "Code": "ProvisionedThroughputExceededException",
+                    "Message": "Provisioned throughput exceeded",
+                }
+            },
+            "PutItem",
+        )
+
+
+def test_execute_tries_with_provisioned_throughput_exceeded(
+    dynamo_db_helper: Tuple[DynamoDBHelper, Any]
+):
+    helper, table = dynamo_db_helper
+
+    def mock_put_item(*args, **kwargs):
+        raise ClientError(
+            {
+                "Error": {
+                    "Code": "ProvisionedThroughputExceededException",
+                    "Message": "Provisioned throughput exceeded",
+                }
+            },
+            "PutItem",
+        )
+
+    with patch.object(table, "put_item", side_effect=mock_put_item):
+        with patch(
+            "time.sleep", return_value=None
+        ):  # Mockar time.sleep para evitar atrasos nos testes
+            with pytest.raises(ClientError) as excinfo:
+                helper.execute_tries(
+                    table.put_item,
+                    {"Item": {"id": "test_id_1", "id_range": "range_value"}},
+                )
+            assert (
+                excinfo.value.response["Error"]["Code"]
+                == "ProvisionedThroughputExceededException"
+            )
+
+
+def test_execute_tries_with_other_exception(
+    dynamo_db_helper: Tuple[DynamoDBHelper, Any]
+):
+    helper, table = dynamo_db_helper
+
+    def mock_put_item(*args, **kwargs):
+        raise ClientError(
+            {
+                "Error": {
+                    "Code": "Internal error",
+                    "Message": "Internal error",
+                }
+            },
+            "PutItem",
+        )
+
+    with patch.object(table, "put_item", side_effect=mock_put_item):
+        with patch(
+            "time.sleep", return_value=None
+        ):  # Mockar time.sleep para evitar atrasos nos testes
+            with pytest.raises(ClientError) as excinfo:
+                helper.execute_tries(
+                    table.put_item,
+                    {"Item": {"id": "test_id_1", "id_range": "range_value"}},
+                )
+            assert excinfo.value.response["Error"]["Code"] == "Internal error"

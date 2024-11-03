@@ -98,25 +98,6 @@ class BaseRepository(DynamoDBHelper):
         self.execute_tries(update_item_function, params)
         updated_ids.append(key)
 
-    def __batch_update(
-        self,
-        keys: List[Dict[str, Any]],
-        update_expression: str,
-        expression_attribute_names: Dict[str, str],
-        expression_attribute_values: Dict[str, Any],
-        updated_ids: List[Dict[str, Any]],
-    ) -> None:
-        with self.table.batch_writer() as batch:
-            for key in keys:
-                params = {
-                    "Key": key,
-                    "UpdateExpression": update_expression,
-                    "ExpressionAttributeNames": expression_attribute_names,
-                    "ExpressionAttributeValues": expression_attribute_values,
-                }
-                self.execute_tries(batch.update_item, params)
-                updated_ids.append(key)
-
     def insert(
         self, item: Dict[str, Any] = [], overwrite: bool = False
     ) -> Optional[str]:
@@ -181,10 +162,12 @@ class BaseRepository(DynamoDBHelper):
                     limit=self.max_query_id_items,
                 )
 
-                for i in range(0, len(keys), self.max_write_items):
-                    self.__batch_update(
-                        keys[i : i + self.max_write_items],
+                for key in keys:
+                    self.__update(
+                        self.table.update_item,
+                        key,
                         update_expression,
+                        None,
                         expression_attribute_names,
                         expression_attribute_values,
                         updated_ids=updated_ids,

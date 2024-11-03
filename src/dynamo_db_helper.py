@@ -21,7 +21,7 @@ GSI_RANGE_KEY = "RANGE"
 
 EXECUTION_TRIES = 5
 
-RESERVED_WORDS = ["status"]
+RESERVED_WORDS = ["name", "status"]
 
 
 class DynamoDBHelper(ABC):
@@ -84,6 +84,7 @@ class DynamoDBHelper(ABC):
     ) -> Optional[Dict[str, Any]]:
         retries = 0
         backoff_factor: float = 1.5
+        exception = None
 
         while retries < EXECUTION_TRIES:
             try:
@@ -93,6 +94,7 @@ class DynamoDBHelper(ABC):
                     e.response["Error"]["Code"]
                     == "ProvisionedThroughputExceededException"
                 ):
+                    exception = e
                     retries += 1
                     wait_time = backoff_factor**retries
                     print(
@@ -101,6 +103,8 @@ class DynamoDBHelper(ABC):
                     time.sleep(wait_time)
                 else:
                     raise e
+
+        raise exception
 
     @staticmethod
     def datetime_serializer(obj):

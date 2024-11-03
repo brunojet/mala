@@ -1,15 +1,5 @@
+import boto3
 from typing import Dict, List, Any
-
-
-DESCRIBLE_TABLE = {
-    "Table": {
-        "TableStatus": "ACTIVE",
-        "ProvisionedThroughput": {
-            "ReadCapacityUnits": 1,
-            "WriteCapacityUnits": 1,
-        },
-    }
-}
 
 
 def add_attribute_definitions(
@@ -64,7 +54,10 @@ def create_gsi_key_schemas(
 
 
 def create_table(
-    resource, key_schema: List[Dict[str, str]], gsi_key_schemas: List[Dict[str, str]]
+    table_name: str,
+    resource: boto3.resource,
+    key_schema: List[Dict[str, str]],
+    gsi_key_schemas: List[Dict[str, str]],
 ) -> Any:
     attribute_definitions: List[Dict[str, str]] = []
     dynamodb_key_schema = create_key_schema(key_schema, attribute_definitions)
@@ -73,7 +66,7 @@ def create_table(
     )
 
     params = {
-        "TableName": "test_table",
+        "TableName": table_name,
         "KeySchema": dynamodb_key_schema,
         "AttributeDefinitions": attribute_definitions,
         "ProvisionedThroughput": {
@@ -87,4 +80,7 @@ def create_table(
 
     table = resource.create_table(**params)
     table.wait_until_exists()
-    return table
+    client = resource.meta.client
+    describle_table = client.describe_table(TableName=table_name)
+
+    return client, table, describle_table

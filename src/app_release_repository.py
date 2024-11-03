@@ -1,7 +1,5 @@
-import json
 from base_repository import BaseRepository
 from typing import Optional, Dict, Any, List
-from create_table import create_table
 
 RANGE_KEY_ITENS = ["mdm", "version_name"]
 
@@ -29,7 +27,6 @@ STATUS_CANCELED = "canceled"
 APPS_DEFAULT_STAGE = STAGE_PRODUCTION
 APPS_DEFAULT_STATUS = [STATUS_ROLLOUT]
 APP_DEFAULT_STATUS = [STATUS_PENDING, STATUS_APPROVED, STATUS_ROLLOUT]
-
 
 
 class AppReleaseRepository(BaseRepository):
@@ -170,4 +167,3 @@ class AppReleaseRepository(BaseRepository):
                 break
 
         return items
-
