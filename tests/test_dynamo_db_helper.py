@@ -91,60 +91,6 @@ def test_init_table_value_error(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
         helper._init_table("test_table", 2048)
 
 
-def test_is_primary_key(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    repo = dynamo_db_helper[0]
-
-    key_condition = {PRIMARY_HASH_KEY: "hash_value", PRIMARY_RANGE_KEY: "range_value"}
-    assert repo.is_primary_key(key_condition) is True
-
-    key_condition = {PRIMARY_HASH_KEY: "hash_value"}
-    assert repo.is_primary_key(key_condition) is False
-
-
-def test_add_range_key(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    repo = dynamo_db_helper[0]
-    item = {
-        PRIMARY_HASH_KEY: "hash_value",
-        "range_key1": "value1",
-        "range_key2": "value2",
-    }
-    repo.add_range_key(item)
-    assert item[PRIMARY_RANGE_KEY] == "value1#value2"
-
-
-def test_build_insert_condition_expression(
-    dynamo_db_helper: Tuple[DynamoDBHelper, Any]
-):
-    repo = dynamo_db_helper[0]
-    condition_expression = repo._build_insert_condition_expression()
-    assert condition_expression is not None
-
-
-def test_build_key_expression(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    repo = dynamo_db_helper[0]
-    key_condition = {PRIMARY_HASH_KEY: "hash_value", PRIMARY_RANGE_KEY: "range_value"}
-    index_name, key_expression = repo.build_key_expression(key_condition)
-    assert index_name is None
-    assert key_expression is not None
-
-
-def test_get_gsi_key_expression(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper = dynamo_db_helper[0]
-    key_condition = {"gsi_hash_key": "hash_value", "gsi_range_key": "range_value"}
-    index_name, key_expression = helper.build_key_expression(key_condition)
-    assert index_name == "GSI1"
-    assert key_expression is not None
-
-
-def test_get_gsi_key_expression_value_error(
-    dynamo_db_helper: Tuple[DynamoDBHelper, Any]
-):
-    helper = dynamo_db_helper[0]
-    key_condition_invalid = {"invalid_key": "value"}
-    with pytest.raises(ValueError):
-        helper._get_gsi_key_expression(key_condition_invalid)
-
-
 def test_execute_tries_with_provisioned_throughput_exceeded(
     dynamo_db_helper: Tuple[DynamoDBHelper, Any]
 ):
@@ -202,14 +148,3 @@ def test_execute_tries_with_other_exception(
                     {"Item": {"id": "test_id_1", "id_range": "range_value"}},
                 )
             assert excinfo.value.response["Error"]["Code"] == "Internal error"
-
-
-def test_datetime_serializer():
-    # Teste para datetime
-    dt = datetime(2023, 1, 1, 12, 0, 0)
-    assert DynamoDBHelper.datetime_serializer(dt) == "2023-01-01T12:00:00"
-
-    # Teste para TypeError
-    with pytest.raises(TypeError) as excinfo:
-        DynamoDBHelper.datetime_serializer("not a datetime")
-    assert str(excinfo.value) == "Type <class 'str'> not serializable"

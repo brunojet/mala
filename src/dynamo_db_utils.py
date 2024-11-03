@@ -7,30 +7,22 @@ PRIMARY_HASH_KEY = "id"
 PRIMARY_RANGE_KEY = "id_range"
 RESERVED_WORDS = ["name", "status"]
 
+GSI_INDEX_NAME_KEY = "index_name"
+GSI_HASH_KEY = "HASH"
+GSI_RANGE_KEY = "RANGE"
+
 
 class DynamoDBUtils:
 
     @staticmethod
-    def add_range_key(item: Dict[str, str], range_key_items: List[str]) -> None:
+    def __add_range_key(item: Dict[str, str], range_key_items: List[str]) -> None:
         range_key_values = [item[key] for key in range_key_items if key in item]
         if range_key_values:
             item[PRIMARY_RANGE_KEY] = "#".join(range_key_values)
 
     @staticmethod
-    def build_insert_condition_expression(item: Dict[str, str]) -> Attr:
-        assert item and item.keys(), "Item is required"
-        assert PRIMARY_HASH_KEY in item, f"{PRIMARY_HASH_KEY} is required in item"
-
-        condition_expression = Attr(PRIMARY_HASH_KEY).not_exists()
-
-        if PRIMARY_RANGE_KEY in item:
-            condition_expression &= Attr(PRIMARY_RANGE_KEY).not_exists()
-
-        return condition_expression
-
-    @staticmethod
-    def build_key_expression(
-        key_condition: Dict[str, str]
+    def __build_key_expression(
+        params: Dict[str, Any], key_condition: Dict[str, str]
     ) -> Tuple[Optional[str], str]:
         assert key_condition and key_condition.keys(), "Key condition is required"
         key_expression = None
@@ -41,14 +33,97 @@ class DynamoDBUtils:
             else:
                 key_expression &= Key(key).eq(value)
 
-        return key_expression
+        params["KeyConditionExpression"] = key_expression
+
+    @staticmethod
+    def __get_gsi_key_schema(
+        gsi_key_schemas: List[Dict[str, str]], key_set: set[str]
+    ) -> Optional[Dict[str, str]]:
+        has_range_key = len(key_set) > 1
+
+        for gsi_key_schema in gsi_key_schemas:
+            hash_key = gsi_key_schema.get(GSI_HASH_KEY)
+            range_key = gsi_key_schema.get(GSI_RANGE_KEY)
+
+            if hash_key not in key_set:
+                continue
+
+            if has_range_key:
+                if range_key and range_key in key_set:
+                    return gsi_key_schema
+            else:
+                return gsi_key_schema
+
+    @staticmethod
+    def __get_gsi_key_expression(
+        params: Dict[str, Any],
+        gsi_key_schemas: List[Dict[str, str]],
+        key_condition: Dict[str, Any],
+    ) -> Tuple[str, Any]:
+        key_set = key_condition.keys()
+
+        gsi_key_schema = DynamoDBUtils.__get_gsi_key_schema(gsi_key_schemas, key_set)
+
+        if gsi_key_schema is None:
+            raise ValueError(
+                f"GSI key schema not found for the given update condition {key_set}."
+            )
+
+        index_name = gsi_key_schema.get(GSI_INDEX_NAME_KEY)
+        hash_key = gsi_key_schema.get(GSI_HASH_KEY)
+        range_key = gsi_key_schema.get(GSI_RANGE_KEY)
+        hash_condition = key_condition.get(hash_key)
+        range_condition = key_condition.get(range_key)
+
+        key_condition = {hash_key: hash_condition}
+
+        if range_condition:
+            key_condition[range_key] = range_condition
+
+        params["IndexName"] = index_name
+
+        DynamoDBUtils.__build_key_expression(params, key_condition)
+
+    @staticmethod
+    def build_projection_expression(
+        params: Dict[str, Any],
+        projection_expression: Optional[List[str]],
+    ) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
+        if not projection_expression:
+            return None, None
+
+        expression_attribute_names = {
+            f"#{attr}": attr for attr in projection_expression
+        }
+
+        projection_expression_str = ", ".join(
+            f"#{attr}" for attr in projection_expression
+        )
+
+        params["ExpressionAttributeNames"] = expression_attribute_names
+        params["ProjectionExpression"] = projection_expression_str
+
+    @staticmethod
+    def __build_common_params(
+        params: Dict[str, Any],
+        projection_expression: Optional[List[str]],
+        last_evaluated_key: Optional[Dict[str, Any]],
+        limit: Optional[int],
+    ) -> Dict[str, Any]:
+        DynamoDBUtils.build_projection_expression(params, projection_expression)
+
+        if last_evaluated_key:
+            params["ExclusiveStartKey"] = last_evaluated_key
+
+        if limit:
+            params["Limit"] = limit
 
     @staticmethod
     def build_filter_expression(
-        filter_condition: Optional[Dict[str, str]]
+        params: Dict[str, Any], filter_condition: Optional[Dict[str, str]]
     ) -> Optional[str]:
         if not filter_condition:
-            return None
+            return
 
         filter_expression = None
 
@@ -85,23 +160,7 @@ class DynamoDBUtils:
             else:
                 filter_expression &= condition
 
-        return filter_expression
-
-    @staticmethod
-    def build_projection_expression(
-        projection_expression: Optional[List[str]],
-    ) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
-        if not projection_expression:
-            return None, None
-
-        expression_attribute_names = {
-            f"#{attr}": attr for attr in projection_expression
-        }
-        projection_expression_str = ", ".join(
-            f"#{attr}" for attr in projection_expression
-        )
-
-        return projection_expression_str, expression_attribute_names
+        params["FilterExpression"] = filter_expression
 
     @staticmethod
     def build_update_expression(
@@ -130,12 +189,41 @@ class DynamoDBUtils:
         )
 
     @staticmethod
+    def is_primary_key(has_range_key: bool, key_condition: Dict[str, Any]) -> bool:
+        if PRIMARY_HASH_KEY not in key_condition:
+            return False
+        elif has_range_key and PRIMARY_RANGE_KEY not in key_condition:
+            return False
+
+        return True
+
+    def build_primary_key(has_range_key: bool, key: Dict[str, Any]) -> Dict[str, Any]:
+        primary_key = {PRIMARY_HASH_KEY: key[PRIMARY_HASH_KEY]}
+
+        if has_range_key:
+            primary_key[PRIMARY_RANGE_KEY] = key[PRIMARY_RANGE_KEY]
+
+        return primary_key
+
+    @staticmethod
+    def build_insert_condition_expression(has_range_key: bool) -> Attr:
+
+        condition_expression = Attr(PRIMARY_HASH_KEY).not_exists()
+
+        if has_range_key:
+            condition_expression &= Attr(PRIMARY_RANGE_KEY).not_exists()
+
+        return condition_expression
+
+    @staticmethod
     def build_put_item_params(
-        put_item: Dict[str, Any], range_key_items: List[str] = [], overwrite: bool = False
+        put_item: Dict[str, Any],
+        range_key_items: List[str] = [],
+        overwrite: bool = False,
     ) -> Dict[str, Any]:
         timestamp = datetime.utcnow().isoformat()
         item = copy.deepcopy(put_item)
-        DynamoDBUtils.add_range_key(item, range_key_items)
+        DynamoDBUtils.__add_range_key(item, range_key_items)
         item["created_at"] = timestamp
         item["updated_at"] = timestamp
 
@@ -145,6 +233,45 @@ class DynamoDBUtils:
             params["ConditionExpression"] = (
                 DynamoDBUtils.build_insert_condition_expression(item)
             )
+
+        return params
+
+    @staticmethod
+    def build_get_item_params(
+        key_condition: Dict[str, str],
+        filter_condition: Dict[str, str],
+        projection_expression: Optional[List[str]],
+        last_evaluated_key: Optional[Dict[str, Any]],
+        limit: Optional[int],
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        params: Dict[str, Any] = {}
+
+        DynamoDBUtils.__build_key_expression(params, key_condition)
+
+        DynamoDBUtils.build_filter_expression(params, filter_condition)
+
+        DynamoDBUtils.__build_common_params(
+            params, projection_expression, last_evaluated_key, limit
+        )
+
+        return params
+
+    @staticmethod
+    def build_get_item_params_gsi_key_schema(
+        gsi_key_schemas: List[Dict[str, str]],
+        key_condition: Dict[str, str],
+        projection_expression: Optional[List[str]],
+        last_evaluated_key: Optional[Dict[str, Any]],
+        limit: Optional[int],
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        params: Dict[str, Any] = {}
+
+        DynamoDBUtils.__get_gsi_key_expression(params, gsi_key_schemas, key_condition)
+
+        DynamoDBUtils.__build_common_params(
+            params, projection_expression, last_evaluated_key, limit
+        )
+
         return params
 
     @staticmethod
@@ -164,20 +291,6 @@ class DynamoDBUtils:
         }
         if condition_expression:
             params["ConditionExpression"] = condition_expression
-        return params
-
-    @staticmethod
-    def build_get_item_params(
-        key: Dict[str, Any], projection_expression: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        params = {"Key": key}
-        projection_expression_str, expression_attribute_names = (
-            DynamoDBUtils.build_projection_expression(projection_expression)
-        )
-        if projection_expression_str:
-            params["ProjectionExpression"] = projection_expression_str
-        if expression_attribute_names:
-            params["ExpressionAttributeNames"] = expression_attribute_names
         return params
 
     @staticmethod

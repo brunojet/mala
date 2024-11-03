@@ -1,4 +1,3 @@
-import copy
 from typing import List, Dict, Any, Optional, Tuple
 from dynamo_db_helper import DynamoDBHelper, DEFAULT_MAX_ITEM_SIZE
 from dynamo_db_utils import DynamoDBUtils as utils
@@ -29,13 +28,12 @@ class BaseRepository(DynamoDBHelper):
 
         self.execute_tries(put_item_function, params)
 
-        return self.build_primary_key(params["Item"])
+        return utils.build_primary_key(self.has_range_key, params["Item"])
 
     def __query(
         self,
-        index_name: Optional[str],
-        key_condition_expression: str,
-        filter_expression: Optional[str],
+        key_condition: Dict[str, str],
+        filter_condition: Dict[str, str],
         projection_expression: Optional[List[str]],
         last_evaluated_key: Optional[Dict[str, Any]],
         limit: Optional[int],
@@ -43,28 +41,22 @@ class BaseRepository(DynamoDBHelper):
         if limit is None:
             limit = self.max_read_items
 
-        params: Dict[str, Any] = {"KeyConditionExpression": key_condition_expression}
-
-        if index_name:
-            params["IndexName"] = index_name
-
-        if filter_expression:
-            params["FilterExpression"] = filter_expression
-
-        if last_evaluated_key:
-            params["ExclusiveStartKey"] = last_evaluated_key
-
-        projection_expression, expression_attribute_names = (
-            utils.build_projection_expression(projection_expression)
-        )
-
-        if projection_expression:
-            params["ProjectionExpression"] = projection_expression
-
-        if expression_attribute_names:
-            params["ExpressionAttributeNames"] = expression_attribute_names
-
-        params["Limit"] = limit
+        if utils.is_primary_key(self.has_range_key, key_condition):
+            params = utils.build_get_item_params(
+                key_condition,
+                filter_condition,
+                projection_expression,
+                last_evaluated_key,
+                limit,
+            )
+        else:
+            params = utils.build_get_item_params_gsi_key_schema(
+                self.gsi_key_schemas,
+                key_condition,
+                projection_expression,
+                last_evaluated_key,
+                limit,
+            )
 
         response = self.execute_tries(self.table.query, params)
 
@@ -106,14 +98,10 @@ class BaseRepository(DynamoDBHelper):
         last_evaluated_key: Dict[str, Any] = None,
         limit: Optional[int] = None,
     ) -> Tuple[List[Dict[str, Any]], str]:
-        index_name, key_condition_expression = self.build_key_expression(key_condition)
-
-        filter_expression = utils.build_filter_expression(filter_condition)
 
         items, last_evaluated_key = self.__query(
-            index_name,
-            key_condition_expression,
-            filter_expression,
+            key_condition,
+            filter_condition,
             projection_expression,
             last_evaluated_key,
             limit,
@@ -133,7 +121,7 @@ class BaseRepository(DynamoDBHelper):
             utils.build_update_expression(update_items)
         )
 
-        if self.is_primary_key(key_condition):
+        if utils.is_primary_key(self.has_range_key, key_condition):
             condition_expression = utils.build_filter_expression(filter_condition)
 
             self.__update(

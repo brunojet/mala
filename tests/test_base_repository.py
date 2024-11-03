@@ -5,6 +5,7 @@ from moto import mock_aws
 from unittest.mock import patch
 from test_dynamo_db_utils import create_table
 from base_repository import BaseRepository
+from dynamo_db_utils import DynamoDBUtils as utils
 from unittest import TestCase
 
 MOCK_DATA = [
@@ -118,7 +119,7 @@ def test_insert(base_repository: Tuple[BaseRepository, Any]):
 
     for item in MOCK_DATA:
         result = repo.insert(item, overwrite=True)
-        TestCase().assertDictEqual(result, repo.build_primary_key(item))
+        TestCase().assertDictEqual(result, utils.build_primary_key(repo.has_range_key, item))
 
 
 def test_query(base_repository: Tuple[BaseRepository, Any]):
