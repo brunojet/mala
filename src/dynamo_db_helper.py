@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
+from dynamo_db_utils import DynamoDBUtils as utils
 
 DYNAMO_DB_RESOURCE = boto3.resource("dynamodb")
 DYNAMO_DB_CLIENT = boto3.client("dynamodb")
@@ -147,18 +148,6 @@ class DynamoDBHelper(ABC):
 
         return primary_key
 
-    @staticmethod
-    def _build_key_expression(keys: Dict[str, Any]) -> Attr:
-        key_expression = None
-
-        for key, value in keys.items():
-            if key_expression is None:
-                key_expression = Key(key).eq(value)
-            else:
-                key_expression &= Key(key).eq(value)
-
-        return key_expression
-
     def _get_gsi_key_schema(self, key_set: set[str]) -> Optional[Dict[str, str]]:
         has_range_key = len(key_set) > 1
 
@@ -196,7 +185,7 @@ class DynamoDBHelper(ABC):
         if range_condition:
             key_condition[range_key] = range_condition
 
-        key_condition_expression = self._build_key_expression(key_condition)
+        key_condition_expression = utils.build_key_expression(key_condition)
 
         return index_name, key_condition_expression
 
@@ -206,48 +195,9 @@ class DynamoDBHelper(ABC):
         ), "Key condition cannot be empty."
 
         if self.is_primary_key(key_condition):
-            return None, self._build_key_expression(key_condition)
+            return None, utils.build_key_expression(key_condition)
         else:
             return self._get_gsi_key_expression(key_condition)
-
-    @staticmethod
-    def build_filter_expression(update_item: Dict[str, Any] = {}) -> Optional[str]:
-        filter_expression = None
-
-        for key, value in update_item.items():
-            key_and_operator = key.split("#")
-            key = key_and_operator[0]
-            operator = key_and_operator[1] if len(key_and_operator) > 1 else "eq"
-            condition = None
-
-            match operator:
-                case "eq":
-                    condition = Attr(key).eq(value)
-                case "ne":
-                    condition = Attr(key).ne(value)
-                case "in":
-                    condition = Attr(key).is_in(value)
-                case "lt":
-                    condition = Attr(key).lt(value)
-                case "lte":
-                    condition = Attr(key).lte(value)
-                case "gt":
-                    condition = Attr(key).gt(value)
-                case "gte":
-                    condition = Attr(key).gte(value)
-                case "between":
-                    condition = Attr(key).between(value[0], value[1])
-                case "begins_with":
-                    condition = Attr(key).begins_with(value)
-
-            assert condition, f"Invalid operator: {operator}"
-
-            if not filter_expression:
-                filter_expression = condition
-            else:
-                filter_expression &= condition
-
-        return filter_expression
 
     @staticmethod
     def _build_attribute_name_and_values(

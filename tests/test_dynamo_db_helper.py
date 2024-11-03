@@ -5,7 +5,7 @@ from typing import Any, Tuple
 from moto import mock_aws
 from unittest.mock import patch
 from botocore.exceptions import ClientError
-from dynamo_db_utils import create_table
+from test_dynamo_db_utils import create_table
 from dynamo_db_helper import DynamoDBHelper, PRIMARY_HASH_KEY, PRIMARY_RANGE_KEY
 from boto3.dynamodb.conditions import Attr
 
@@ -222,70 +222,3 @@ def test_datetime_serializer():
     with pytest.raises(TypeError) as excinfo:
         DynamoDBHelper.datetime_serializer("not a datetime")
     assert str(excinfo.value) == "Type <class 'str'> not serializable"
-
-
-def test_build_filter_expression_eq(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"status#eq": "active"}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    from boto3.dynamodb.conditions import Attr
-
-    assert filter_expression == Attr("status").eq("active")
-
-
-def test_build_filter_expression_ne(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"status#ne": "inactive"}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("status").ne("inactive")
-
-
-def test_build_filter_expression_in(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"status#in": ["active", "pending"]}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("status").is_in(["active", "pending"])
-
-
-def test_build_filter_expression_lt(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"age#lt": 30}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("age").lt(30)
-
-
-def test_build_filter_expression_lte(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"age#lte": 30}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("age").lte(30)
-
-
-def test_build_filter_expression_gt(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"age#gt": 30}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("age").gt(30)
-
-
-def test_build_filter_expression_gte(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"age#gte": 30}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("age").gte(30)
-
-
-def test_build_filter_expression_between(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"age#between": [20, 30]}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("age").between(20, 30)
-
-
-def test_build_filter_expression_begins_with(
-    dynamo_db_helper: Tuple[DynamoDBHelper, Any]
-):
-    helper, _ = dynamo_db_helper
-    filter_condition = {"name#begins_with": "John"}
-    filter_expression = helper.build_filter_expression(filter_condition)
-    assert filter_expression == Attr("name").begins_with("John")

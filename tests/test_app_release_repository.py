@@ -1,7 +1,7 @@
 import boto3
 import pytest
 from typing import Tuple, Any
-from dynamo_db_utils import create_table
+from test_dynamo_db_utils import create_table
 from moto import mock_aws
 from unittest.mock import MagicMock, patch
 from app_release_repository import (

@@ -1,6 +1,7 @@
 import copy
 from typing import List, Dict, Any, Optional, Tuple
 from dynamo_db_helper import DynamoDBHelper, DEFAULT_MAX_ITEM_SIZE
+from dynamo_db_utils import DynamoDBUtils as utils
 
 EXECUTION_TRIES = 5
 
@@ -113,7 +114,7 @@ class BaseRepository(DynamoDBHelper):
     ) -> Tuple[List[Dict[str, Any]], str]:
         index_name, key_condition_expression = self.build_key_expression(key_condition)
 
-        filter_expression = self.build_filter_expression(filter_condition)
+        filter_expression = utils.build_filter_expression(filter_condition)
 
         items, last_evaluated_key = self.__query(
             index_name,
@@ -139,7 +140,7 @@ class BaseRepository(DynamoDBHelper):
         )
 
         if self.is_primary_key(key_condition):
-            condition_expression = self.build_filter_expression(filter_condition)
+            condition_expression = utils.build_filter_expression(filter_condition)
 
             self.__update(
                 self.table.update_item,

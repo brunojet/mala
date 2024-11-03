@@ -3,7 +3,7 @@ import pytest
 from typing import Tuple, Any
 from moto import mock_aws
 from unittest.mock import patch
-from dynamo_db_utils import create_table
+from test_dynamo_db_utils import create_table
 from base_repository import BaseRepository
 from unittest import TestCase
 
