@@ -27,7 +27,7 @@ class BaseRepository(DynamoDBHelper):
 
         params = {"Item": item}
 
-        if not overwrite:
+        if overwrite:
             params["ConditionExpression"] = self.insert_condition_expression
 
         self.execute_tries(put_item_function, params)
