@@ -1,6 +1,5 @@
 import boto3
 import pytest
-import copy
 from typing import Tuple, Any
 from moto import mock_aws
 from unittest.mock import patch
@@ -64,8 +63,7 @@ def test_query(base_repository: Tuple[BaseRepository, Any]):
     repo = base_repository[0]
 
     for item in MOCK_DATA:
-        repo.insert(item)
-        primary_key = repo.build_primary_key(item)
+        primary_key = repo.insert(item)
         results = repo.query(primary_key)[0]
         for result in results:
             for key, value in primary_key.items():

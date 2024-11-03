@@ -1,3 +1,4 @@
+import copy
 from typing import List, Dict, Any, Optional, Tuple
 from dynamo_db_helper import DynamoDBHelper, DEFAULT_MAX_ITEM_SIZE
 
@@ -20,9 +21,10 @@ class BaseRepository(DynamoDBHelper):
     def __insert(
         self,
         put_item_function,
-        item: Dict[str, Any],
+        insert_item: Dict[str, Any],
         overwrite: bool,
     ) -> Optional[str]:
+        item = copy.deepcopy(insert_item)
         self.adjust_insert_item(item)
 
         params = {"Item": item}
