@@ -240,26 +240,3 @@ class DynamoDBHelper(ABC):
             expression_attribute_names,
             expression_attribute_values,
         )
-
-    @staticmethod
-    def build_projection_expression(
-        projection_expression: Optional[List[str]],
-    ) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
-        if not projection_expression or len(projection_expression) == 0:
-            return None, None
-
-        expression_attribute_names = {}
-        final_projection_expression = []
-
-        for item in projection_expression:
-            if item in RESERVED_WORDS:
-                placeholder = f"#{item}"
-                final_projection_expression.append(placeholder)
-                expression_attribute_names[placeholder] = item
-            else:
-                final_projection_expression.append(item)
-
-        return (
-            ", ".join(final_projection_expression),
-            expression_attribute_names if expression_attribute_names else None,
-        )

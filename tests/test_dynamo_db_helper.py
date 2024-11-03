@@ -145,15 +145,6 @@ def test_get_gsi_key_expression_value_error(
         helper._get_gsi_key_expression(key_condition_invalid)
 
 
-def test_build_projection_expression():
-    projection_expression = ["id", "name", "status"]
-    expression, attribute_names = DynamoDBHelper.build_projection_expression(
-        projection_expression
-    )
-    assert expression == "id, #name, #status"
-    assert attribute_names == {"#name": "name", "#status": "status"}
-
-
 def test_execute_tries_with_provisioned_throughput_exceeded(
     dynamo_db_helper: Tuple[DynamoDBHelper, Any]
 ):

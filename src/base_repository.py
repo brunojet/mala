@@ -61,7 +61,7 @@ class BaseRepository(DynamoDBHelper):
             params["ExclusiveStartKey"] = last_evaluated_key
 
         projection_expression, expression_attribute_names = (
-            self.build_projection_expression(projection_expression)
+            utils.build_projection_expression(projection_expression)
         )
 
         if projection_expression:
