@@ -1,5 +1,6 @@
 import boto3
 import pytest
+from typing import Tuple, Any
 from dynamo_db_utils import create_table, DESCRIBLE_TABLE
 from moto import mock_aws
 from unittest.mock import MagicMock, patch
@@ -64,7 +65,7 @@ def dynamodb():
 
 
 @pytest.fixture
-def app_release_repository(dynamodb):
+def app_release_repository(dynamodb: Tuple[boto3.client, Any]):
     client, table = dynamodb
 
     with patch.object(client, "describe_table", return_value=DESCRIBLE_TABLE):

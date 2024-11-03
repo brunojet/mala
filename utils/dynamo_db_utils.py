@@ -60,7 +60,7 @@ def create_gsi_key_schemas(
 
         dynamodb_gsi_key_schemas.append(dynamodb_gsi_key_schema)
 
-    return dynamodb_gsi_key_schemas
+    return dynamodb_gsi_key_schemas if len(dynamodb_gsi_key_schemas) > 0 else None
 
 
 def create_table(
@@ -72,15 +72,19 @@ def create_table(
         gsi_key_schemas, attribute_definitions
     )
 
-    table = resource.create_table(
-        TableName="test_table",
-        KeySchema=dynamodb_key_schema,
-        AttributeDefinitions=attribute_definitions,
-        GlobalSecondaryIndexes=dynamodb_gsi_key_schemas,
-        ProvisionedThroughput={
+    params = {
+        "TableName": "test_table",
+        "KeySchema": dynamodb_key_schema,
+        "AttributeDefinitions": attribute_definitions,
+        "ProvisionedThroughput": {
             "ReadCapacityUnits": 1,
             "WriteCapacityUnits": 1,
         },
-    )
+    }
+
+    if dynamodb_gsi_key_schemas:
+        params["GlobalSecondaryIndexes"] = dynamodb_gsi_key_schemas
+
+    table = resource.create_table(**params)
     table.wait_until_exists()
     return table

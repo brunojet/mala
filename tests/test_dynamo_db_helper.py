@@ -27,7 +27,7 @@ def dynamodb():
 
 
 @pytest.fixture
-def dynamo_db_helper(dynamodb):
+def dynamo_db_helper(dynamodb: Tuple[boto3.client, Any]):
     client, table = dynamodb
 
     with patch.object(
