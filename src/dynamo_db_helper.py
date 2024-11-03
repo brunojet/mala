@@ -217,26 +217,3 @@ class DynamoDBHelper(ABC):
         timestamp = datetime.utcnow().isoformat()
         item["created_at"] = timestamp
         item["updated_at"] = timestamp
-
-    def build_update_expression(self, update_items: Dict[str, Any]) -> str:
-        assert update_items and len(update_items) > 0, "Update items cannot be empty."
-
-        timestamp = datetime.utcnow().isoformat()
-        update_items["updated_at"] = timestamp
-
-        update_expression = "SET " + ", ".join(
-            [
-                f"#{key} = :val{idx}"
-                for idx, (key, value) in enumerate(update_items.items())
-            ]
-        )
-
-        expression_attribute_names, expression_attribute_values = (
-            self._build_attribute_name_and_values(update_items)
-        )
-
-        return (
-            update_expression,
-            expression_attribute_names,
-            expression_attribute_values,
-        )

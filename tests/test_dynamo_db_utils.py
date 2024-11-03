@@ -93,21 +93,36 @@ def test_build_update_expression():
     update_expression, expression_attribute_names, expression_attribute_values = (
         DynamoDBUtils.build_update_expression(update_items)
     )
-    assert update_expression == "SET #status = :status, #age = :age"
-    assert expression_attribute_names == {"#status": "status", "#age": "age"}
-    assert expression_attribute_values == {":status": "active", ":age": 30}
+    assert (
+        update_expression
+        == "SET #status = :status, #age = :age, #updated_at = :updated_at"
+    )
+    assert expression_attribute_names == {
+        "#status": "status",
+        "#age": "age",
+        "#updated_at": "updated_at",
+    }
+    assert expression_attribute_values == {
+        ":status": "active",
+        ":age": 30,
+        ":updated_at": expression_attribute_values[":updated_at"],
+    }
 
 
 def test_build_put_item_params():
     item = {"id": "123", "id_range": "456"}
-    params = DynamoDBUtils.build_put_item_params(item, overwrite=False)
+    params = DynamoDBUtils.build_put_item_params(item, [], overwrite=False)
+    item["created_at"] = params["Item"]["created_at"]
+    item["updated_at"] = params["Item"]["updated_at"]
     assert params["Item"] == item
     assert (
         params["ConditionExpression"]
         == Attr("id").not_exists() & Attr("id_range").not_exists()
     )
 
-    params = DynamoDBUtils.build_put_item_params(item, overwrite=True)
+    params = DynamoDBUtils.build_put_item_params(item, [], overwrite=True)
+    item["created_at"] = params["Item"]["created_at"]
+    item["updated_at"] = params["Item"]["updated_at"]
     assert params["Item"] == item
     assert "ConditionExpression" not in params
 
@@ -117,9 +132,20 @@ def test_build_update_item_params():
     update_items = {"status": "active", "age": 30}
     params = DynamoDBUtils.build_update_item_params(key, update_items)
     assert params["Key"] == key
-    assert params["UpdateExpression"] == "SET #status = :status, #age = :age"
-    assert params["ExpressionAttributeNames"] == {"#status": "status", "#age": "age"}
-    assert params["ExpressionAttributeValues"] == {":status": "active", ":age": 30}
+    assert (
+        params["UpdateExpression"]
+        == "SET #status = :status, #age = :age, #updated_at = :updated_at"
+    )
+    assert params["ExpressionAttributeNames"] == {
+        "#status": "status",
+        "#age": "age",
+        "#updated_at": "updated_at",
+    }
+    assert params["ExpressionAttributeValues"] == {
+        ":status": "active",
+        ":age": 30,
+        ":updated_at": params["ExpressionAttributeValues"][":updated_at"],
+    }
 
     condition_expression = "attribute_not_exists(id)"
     params = DynamoDBUtils.build_update_item_params(

@@ -22,20 +22,14 @@ class BaseRepository(DynamoDBHelper):
     def __insert(
         self,
         put_item_function,
-        insert_item: Dict[str, Any],
+        item: Dict[str, Any],
         overwrite: bool,
     ) -> Optional[str]:
-        item = copy.deepcopy(insert_item)
-        self.adjust_insert_item(item)
-
-        params = {"Item": item}
-
-        if overwrite:
-            params["ConditionExpression"] = self.insert_condition_expression
+        params = utils.build_put_item_params(item, self.range_key_items, overwrite)
 
         self.execute_tries(put_item_function, params)
 
-        return self.build_primary_key(item)
+        return self.build_primary_key(params["Item"])
 
     def __query(
         self,
@@ -136,7 +130,7 @@ class BaseRepository(DynamoDBHelper):
         updated_ids = []
 
         update_expression, expression_attribute_names, expression_attribute_values = (
-            self.build_update_expression(update_items)
+            utils.build_update_expression(update_items)
         )
 
         if self.is_primary_key(key_condition):
