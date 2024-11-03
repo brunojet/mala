@@ -47,76 +47,28 @@ def dynamodb():
     with mock_aws():
         resource = boto3.resource("dynamodb", region_name="us-east-1")
         client = boto3.client("dynamodb", region_name="us-east-1")
-        table = resource.create_table(
-            TableName="test_table",
-            KeySchema=[
-                {"AttributeName": "id", "KeyType": "HASH"},
-                {"AttributeName": "id_range", "KeyType": "RANGE"},
-            ],
-            AttributeDefinitions=[
-                {"AttributeName": "id", "AttributeType": "S"},
-                {"AttributeName": "id_range", "AttributeType": "S"},
-                {"AttributeName": "mdm", "AttributeType": "S"},
-                {"AttributeName": "version_name", "AttributeType": "S"},
-                {"AttributeName": "stage", "AttributeType": "S"},
-            ],
-            GlobalSecondaryIndexes=[
-                {
-                    "IndexName": "mdm-version_name-index",
-                    "KeySchema": [
-                        {"AttributeName": "mdm", "KeyType": "HASH"},
-                        {"AttributeName": "version_name", "KeyType": "RANGE"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 5,
-                        "WriteCapacityUnits": 5,
-                    },
-                },
-                {
-                    "IndexName": "id-mdm-index",
-                    "KeySchema": [
-                        {"AttributeName": "id", "KeyType": "HASH"},
-                        {"AttributeName": "mdm", "KeyType": "RANGE"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 5,
-                        "WriteCapacityUnits": 5,
-                    },
-                },
-                {
-                    "IndexName": "stage-index",
-                    "KeySchema": [
-                        {"AttributeName": "stage", "KeyType": "HASH"},
-                    ],
-                    "Projection": {"ProjectionType": "ALL"},
-                    "ProvisionedThroughput": {
-                        "ReadCapacityUnits": 5,
-                        "WriteCapacityUnits": 5,
-                    },
-                },
-            ],
-            ProvisionedThroughput={
-                "ReadCapacityUnits": 5,
-                "WriteCapacityUnits": 5,
+
+        key_schema = {"HASH": "id", "RANGE": "id_range"}
+        gsi_key_schemas = [
+            {
+                "index_name": "mdm-version_name-index",
+                "HASH": "mdm",
+                "RANGE": "version_name",
             },
-        )
-        table.wait_until_exists()
+            {"index_name": "id-mdm-index", "HASH": "id", "RANGE": "mdm"},
+            {"index_name": "stage-index", "HASH": "stage"},
+        ]
+        table = create_table(resource, key_schema, gsi_key_schemas)
+
         yield client, table
-
-
-class TestAppReleaseRepository(AppReleaseRepository):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
 
 @pytest.fixture
 def app_release_repository(dynamodb):
     client, table = dynamodb
 
-    with patch.object(client, "describe_table", return_value=DESCRIBLE_TABLE_MOCK):
-        repo = TestAppReleaseRepository(table_name="test_table")
+    with patch.object(client, "describe_table", return_value=DESCRIBLE_TABLE):
+        repo = AppReleaseRepository(table_name="test_table")
 
         yield repo, table
 
