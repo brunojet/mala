@@ -33,11 +33,11 @@ class DynamoDBHelper(ABC):
         range_key_items: List[str],
         gsi_key_schemas: List[Dict[str, str]],
     ):
-        self.__init_table(table_name, max_item_size)
-        self.__init_key_schemas(has_range_key, range_key_items, gsi_key_schemas)
+        self._init_table(table_name, max_item_size)
+        self._init_key_schemas(has_range_key, range_key_items, gsi_key_schemas)
         self.insert_condition_expression = self._build_insert_condition_expression()
 
-    def __init_key_schemas(
+    def _init_key_schemas(
         self,
         has_range_key: bool,
         range_key_items: List[str],
@@ -58,7 +58,7 @@ class DynamoDBHelper(ABC):
             ):
                 raise ValueError(f"Invalid GSI key schema {gsi_key_schema}")
 
-    def __init_table(self, table_name: str, max_item_size: int) -> None:
+    def _init_table(self, table_name: str, max_item_size: int) -> None:
         self.table_name = table_name
         self.table = DYNAMO_DB_RESOURCE.Table(table_name)
         table_description = DYNAMO_DB_CLIENT.describe_table(TableName=table_name)
@@ -201,8 +201,9 @@ class DynamoDBHelper(ABC):
         return index_name, key_condition_expression
 
     def build_key_expression(self, key_condition: Dict[str, Any]):
-        if not key_condition or len(key_condition) == 0:
-            return None, None
+        assert (
+            key_condition and len(key_condition) > 0
+        ), "Key condition cannot be empty."
 
         if self.is_primary_key(key_condition):
             return None, self._build_key_expression(key_condition)
@@ -238,8 +239,8 @@ class DynamoDBHelper(ABC):
                     condition = Attr(key).between(value[0], value[1])
                 case "begins_with":
                     condition = Attr(key).begins_with(value)
-                case _:
-                    raise ValueError(f"Unsupported operator: {operator}")
+
+            assert condition, f"Invalid operator: {operator}"
 
             if not filter_expression:
                 filter_expression = condition
@@ -252,8 +253,7 @@ class DynamoDBHelper(ABC):
     def _build_attribute_name_and_values(
         update_items: Dict[str, Any],
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, str]]]:
-        if not update_items or len(update_items) == 0:
-            raise ValueError("Update items cannot be empty.")
+        assert update_items and len(update_items) > 0, "Update items cannot be empty."
 
         expression_attribute_names = {f"#{key}": key for key in update_items}
         expression_attribute_values = {
@@ -269,8 +269,7 @@ class DynamoDBHelper(ABC):
         item["updated_at"] = timestamp
 
     def build_update_expression(self, update_items: Dict[str, Any]) -> str:
-        if not update_items or len(update_items) == 0:
-            raise ValueError("Update items cannot be empty.")
+        assert update_items and len(update_items) > 0, "Update items cannot be empty."
 
         timestamp = datetime.utcnow().isoformat()
         update_items["updated_at"] = timestamp
