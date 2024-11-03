@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from mock_dynamo_db import dynamodb_with_range_key, DESCRIBLE_TABLE_MOCK
+from utils.dynamo_db_utils import dynamodb_with_range_key, DESCRIBLE_TABLE_MOCK
 from dynamo_db_helper import DynamoDBHelper, PRIMARY_HASH_KEY, PRIMARY_RANGE_KEY
 
 

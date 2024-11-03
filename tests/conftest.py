@@ -9,3 +9,5 @@ from moto import mock_aws
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 # Adiciona o diretório mocks ao caminho de importação
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../mocks")))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../utils")))

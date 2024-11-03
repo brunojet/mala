@@ -1,6 +1,6 @@
 import boto3
 import pytest
-from mock_dynamo_db import DESCRIBLE_TABLE_MOCK
+from dynamo_db_utils import create_table, DESCRIBLE_TABLE
 from moto import mock_aws
 from unittest.mock import MagicMock, patch
 from app_release_repository import (
