@@ -66,5 +66,5 @@ def test_query(base_repository: Tuple[BaseRepository, Any]):
         primary_key = repo.insert(item)
         results = repo.query(primary_key)[0]
         for result in results:
-            for key, value in primary_key.items():
+            for key, value in item.items():
                 assert result[key] == value
