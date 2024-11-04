@@ -102,10 +102,9 @@ def test_build_projection_expression():
 
 
 def test_build_update_expression():
+    params: Dict[str, str] = {}
     update_items = {"status": "active", "age": 30}
-    update_expression, expression_attribute_names, expression_attribute_values = (
-        DynamoDBUtils.build_update_expression(update_items)
-    )
+    DynamoDBUtils.build_update_expression(params, update_items)
     assert (
         update_expression
         == "SET #status = :status, #age = :age, #updated_at = :updated_at"
