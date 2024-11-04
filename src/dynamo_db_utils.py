@@ -106,10 +106,13 @@ class DynamoDBUtils:
     @staticmethod
     def __build_common_params(
         params: Dict[str, Any],
+        filter_condition: Dict[str, str],
         projection_expression: Optional[List[str]],
         last_evaluated_key: Optional[Dict[str, Any]],
         limit: Optional[int],
     ) -> Dict[str, Any]:
+
+        DynamoDBUtils.build_filter_expression(params, filter_condition)
         DynamoDBUtils.build_projection_expression(params, projection_expression)
 
         if last_evaluated_key:
@@ -120,7 +123,9 @@ class DynamoDBUtils:
 
     @staticmethod
     def build_filter_expression(
-        params: Dict[str, Any], filter_condition: Optional[Dict[str, str]]
+        params: Dict[str, Any],
+        filter_condition: Optional[Dict[str, str]],
+        param_key: str = "FilterExpression",
     ) -> Optional[str]:
         if not filter_condition:
             return
@@ -160,11 +165,11 @@ class DynamoDBUtils:
             else:
                 filter_expression &= condition
 
-        params["FilterExpression"] = filter_expression
+        params[param_key] = filter_expression
 
     @staticmethod
     def build_update_expression(
-        update_items: Dict[str, Any]
+        params: Dict[str, Any], update_items: Dict[str, Any]
     ) -> Tuple[str, Dict[str, str], Dict[str, Any]]:
         assert update_items and len(update_items) > 0, "Update items cannot be empty."
 
@@ -182,11 +187,9 @@ class DynamoDBUtils:
 
         update_expression = update_expression.rstrip(", ")
 
-        return (
-            update_expression,
-            expression_attribute_names,
-            expression_attribute_values,
-        )
+        params["UpdateExpression"] = update_expression
+        params["ExpressionAttributeNames"] = expression_attribute_names
+        params["ExpressionAttributeValues"] = expression_attribute_values
 
     @staticmethod
     def is_primary_key(has_range_key: bool, key_condition: Dict[str, Any]) -> bool:
@@ -248,10 +251,8 @@ class DynamoDBUtils:
 
         DynamoDBUtils.__build_key_expression(params, key_condition)
 
-        DynamoDBUtils.build_filter_expression(params, filter_condition)
-
         DynamoDBUtils.__build_common_params(
-            params, projection_expression, last_evaluated_key, limit
+            params, filter_condition, projection_expression, last_evaluated_key, limit
         )
 
         return params
@@ -260,6 +261,7 @@ class DynamoDBUtils:
     def build_get_item_params_gsi_key_schema(
         gsi_key_schemas: List[Dict[str, str]],
         key_condition: Dict[str, str],
+        filter_condition: Dict[str, str],
         projection_expression: Optional[List[str]],
         last_evaluated_key: Optional[Dict[str, Any]],
         limit: Optional[int],
@@ -269,7 +271,7 @@ class DynamoDBUtils:
         DynamoDBUtils.__get_gsi_key_expression(params, gsi_key_schemas, key_condition)
 
         DynamoDBUtils.__build_common_params(
-            params, projection_expression, last_evaluated_key, limit
+            params, filter_condition, projection_expression, last_evaluated_key, limit
         )
 
         return params
@@ -277,20 +279,17 @@ class DynamoDBUtils:
     @staticmethod
     def build_update_item_params(
         key: Dict[str, Any],
+        filter_condition: Dict[str, Any],
         update_items: Dict[str, Any],
-        condition_expression: Optional[str] = None,
     ) -> Dict[str, Any]:
-        update_expression, expression_attribute_names, expression_attribute_values = (
-            DynamoDBUtils.build_update_expression(update_items)
+        params: Dict[str, Any] = {"Key": key}
+
+        DynamoDBUtils.build_update_expression(params, update_items)
+
+        DynamoDBUtils.build_filter_expression(
+            params, filter_condition, "ConditionExpression"
         )
-        params = {
-            "Key": key,
-            "UpdateExpression": update_expression,
-            "ExpressionAttributeNames": expression_attribute_names,
-            "ExpressionAttributeValues": expression_attribute_values,
-        }
-        if condition_expression:
-            params["ConditionExpression"] = condition_expression
+
         return params
 
     @staticmethod

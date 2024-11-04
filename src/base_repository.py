@@ -53,6 +53,7 @@ class BaseRepository(DynamoDBHelper):
             params = utils.build_get_item_params_gsi_key_schema(
                 self.gsi_key_schemas,
                 key_condition,
+                filter_condition,
                 projection_expression,
                 last_evaluated_key,
                 limit,
@@ -66,22 +67,11 @@ class BaseRepository(DynamoDBHelper):
         self,
         update_item_function: callable,
         key: Dict[str, Any],
-        update_expression: str,
-        condition_expression: Optional[str],
-        expression_attribute_names: Dict[str, str],
-        expression_attribute_values: Dict[str, Any],
+        filter_condition: Dict[str, Any],
+        update_items: Dict[str, Any],
         updated_ids: List[Dict[str, Any]],
     ) -> None:
-        params = {
-            "Key": key,
-            "UpdateExpression": update_expression,
-            "ExpressionAttributeNames": expression_attribute_names,
-            "ExpressionAttributeValues": expression_attribute_values,
-        }
-
-        if condition_expression:
-            params["ConditionExpression"] = condition_expression
-
+        params = utils.build_update_item_params(key, filter_condition, update_items)
         self.execute_tries(update_item_function, params)
         updated_ids.append(key)
 
@@ -117,20 +107,12 @@ class BaseRepository(DynamoDBHelper):
     ) -> List[Dict[str, Any]]:
         updated_ids = []
 
-        update_expression, expression_attribute_names, expression_attribute_values = (
-            utils.build_update_expression(update_items)
-        )
-
         if utils.is_primary_key(self.has_range_key, key_condition):
-            condition_expression = utils.build_filter_expression(filter_condition)
-
             self.__update(
                 self.table.update_item,
                 key_condition,
-                update_expression,
-                condition_expression,
-                expression_attribute_names,
-                expression_attribute_values,
+                filter_condition,
+                update_items,
                 updated_ids=updated_ids,
             )
         else:
@@ -149,10 +131,8 @@ class BaseRepository(DynamoDBHelper):
                     self.__update(
                         self.table.update_item,
                         key,
-                        update_expression,
                         None,
-                        expression_attribute_names,
-                        expression_attribute_values,
+                        update_items,
                         updated_ids=updated_ids,
                     )
 
