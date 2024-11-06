@@ -5,22 +5,6 @@ from datetime import datetime
 from typing import Dict
 
 
-def test_is_primary_key():
-    assert not DynamoDBUtils.is_primary_key(True, {"x": "123"})
-    assert DynamoDBUtils.is_primary_key(True, {"id": "123", "id_range": "456"})
-    assert DynamoDBUtils.is_primary_key(False, {"id": "123"})
-    assert not DynamoDBUtils.is_primary_key(True, {"id": "123"})
-
-
-def test_build_primary_key():
-    primary_key = {"id": "123", "id_range": "456"}
-    assert DynamoDBUtils.build_primary_key(True, primary_key) == {
-        "id": "123",
-        "id_range": "456",
-    }
-    assert DynamoDBUtils.build_primary_key(False, primary_key) == {"id": "123"}
-
-
 def test_build_insert_condition_expression():
     condition_expression = DynamoDBUtils.build_insert_condition_expression(True)
     assert (
@@ -106,18 +90,18 @@ def test_build_update_expression():
     update_items = {"status": "active", "age": 30}
     DynamoDBUtils.build_update_expression(params, update_items)
     assert (
-        update_expression
+        params["UpdateExpression"]
         == "SET #status = :status, #age = :age, #updated_at = :updated_at"
     )
-    assert expression_attribute_names == {
+    assert params["ExpressionAttributeNames"] == {
         "#status": "status",
         "#age": "age",
         "#updated_at": "updated_at",
     }
-    assert expression_attribute_values == {
+    assert params["ExpressionAttributeValues"] == {
         ":status": "active",
         ":age": 30,
-        ":updated_at": expression_attribute_values[":updated_at"],
+        ":updated_at": params["ExpressionAttributeValues"][":updated_at"],
     }
 
 
@@ -175,12 +159,18 @@ def test_build_get_item_params_gsi_key_schema():
         {"index_name": "GSI1", "HASH": "gsi_hash_key", "RANGE": "gsi_range_key"}
     ]
     key_condition = {"gsi_hash_key": "123", "gsi_range_key": "456"}
+    filter_condition = {"status#eq": "active"}
     projection_expression = ["id", "name", "status"]
     last_evaluated_key = {"gsi_hash_key": "123"}
     limit = 10
 
     params = DynamoDBUtils.build_get_item_params_gsi_key_schema(
-        gsi_key_schemas, key_condition, projection_expression, last_evaluated_key, limit
+        gsi_key_schemas,
+        key_condition,
+        filter_condition,
+        projection_expression,
+        last_evaluated_key,
+        limit,
     )
     assert params["KeyConditionExpression"] == Key("gsi_hash_key").eq("123") & Key(
         "gsi_range_key"
@@ -200,6 +190,7 @@ def test_build_get_item_params_gsi_key_schema():
         DynamoDBUtils.build_get_item_params_gsi_key_schema(
             gsi_key_schemas,
             key_condition_invalid,
+            filter_condition,
             projection_expression,
             last_evaluated_key,
             limit,
@@ -211,12 +202,18 @@ def test_build_get_item_params_gsi_key_schema_no_range():
         {"index_name": "GSI1", "HASH": "gsi_hash_key", "RANGE": "gsi_range_key"}
     ]
     key_condition = {"gsi_hash_key": "123"}
+    filter_condition = {"status#eq": "active"}
     projection_expression = ["id", "name", "status"]
     last_evaluated_key = {"gsi_hash_key": "123"}
     limit = 10
 
     params = DynamoDBUtils.build_get_item_params_gsi_key_schema(
-        gsi_key_schemas, key_condition, projection_expression, last_evaluated_key, limit
+        gsi_key_schemas,
+        key_condition,
+        filter_condition,
+        projection_expression,
+        last_evaluated_key,
+        limit,
     )
     assert params["KeyConditionExpression"] == Key("gsi_hash_key").eq("123")
     assert params["ProjectionExpression"] == "#id, #name, #status"
@@ -234,6 +231,7 @@ def test_build_get_item_params_gsi_key_schema_no_range():
         DynamoDBUtils.build_get_item_params_gsi_key_schema(
             gsi_key_schemas,
             key_condition_invalid,
+            filter_condition,
             projection_expression,
             last_evaluated_key,
             limit,
@@ -242,8 +240,9 @@ def test_build_get_item_params_gsi_key_schema_no_range():
 
 def test_build_update_item_params():
     key = {PRIMARY_HASH_KEY: "123", PRIMARY_RANGE_KEY: "456"}
+    filter_condition = {"status#eq": "active"}
     update_items = {"status": "active", "age": 30}
-    params = DynamoDBUtils.build_update_item_params(key, update_items)
+    params = DynamoDBUtils.build_update_item_params(key, filter_condition, update_items)
     assert params["Key"] == key
     assert (
         params["UpdateExpression"]
@@ -260,11 +259,7 @@ def test_build_update_item_params():
         ":updated_at": params["ExpressionAttributeValues"][":updated_at"],
     }
 
-    condition_expression = "attribute_not_exists(id)"
-    params = DynamoDBUtils.build_update_item_params(
-        key, update_items, condition_expression
-    )
-    assert params["ConditionExpression"] == condition_expression
+    assert params["ConditionExpression"] == Attr("status").eq("active")
 
 
 def test_datetime_serializer():

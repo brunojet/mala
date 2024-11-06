@@ -191,22 +191,6 @@ class DynamoDBUtils:
         params["ExpressionAttributeNames"] = expression_attribute_names
         params["ExpressionAttributeValues"] = expression_attribute_values
 
-    @staticmethod
-    def is_primary_key(has_range_key: bool, key_condition: Dict[str, Any]) -> bool:
-        if PRIMARY_HASH_KEY not in key_condition:
-            return False
-        elif has_range_key and PRIMARY_RANGE_KEY not in key_condition:
-            return False
-
-        return True
-
-    def build_primary_key(has_range_key: bool, key: Dict[str, Any]) -> Dict[str, Any]:
-        primary_key = {PRIMARY_HASH_KEY: key[PRIMARY_HASH_KEY]}
-
-        if has_range_key:
-            primary_key[PRIMARY_RANGE_KEY] = key[PRIMARY_RANGE_KEY]
-
-        return primary_key
 
     @staticmethod
     def build_insert_condition_expression(has_range_key: bool) -> Attr:

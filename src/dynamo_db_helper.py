@@ -36,7 +36,9 @@ class DynamoDBHelper(ABC):
     ):
         self._init_table(table_name, max_item_size)
         self._init_key_schemas(has_range_key, range_key_items, gsi_key_schemas)
-        self.insert_condition_expression = utils.build_insert_condition_expression(has_range_key)
+        self.insert_condition_expression = utils.build_insert_condition_expression(
+            has_range_key
+        )
 
     def _init_key_schemas(
         self,
@@ -79,6 +81,24 @@ class DynamoDBHelper(ABC):
         self.max_write_items = write_capacity_bytes // max_item_size
         self.max_query_id_items = read_capacity_bytes // DEFAULT_QUERY_ID_ITEM_SIZE
 
+    def is_primary_key(self, key_condition: Dict[str, Any]) -> bool:
+        if PRIMARY_HASH_KEY not in key_condition:
+            return False
+        elif self.has_range_key and PRIMARY_RANGE_KEY not in key_condition:
+            return False
+
+        return True
+
+    def build_primary_key(self, key: Dict[str, Any]) -> Dict[str, Any]:
+        assert PRIMARY_HASH_KEY in key, "Primary hash key is required"
+        primary_key = {PRIMARY_HASH_KEY: key[PRIMARY_HASH_KEY]}
+
+        if self.has_range_key:
+            assert PRIMARY_RANGE_KEY in key, "Primary range key is required"
+            primary_key[PRIMARY_RANGE_KEY] = key[PRIMARY_RANGE_KEY]
+
+        return primary_key
+
     @staticmethod
     def execute_tries(
         function: callable, params: Dict[str, Any]
@@ -106,3 +126,59 @@ class DynamoDBHelper(ABC):
                     raise e
 
         raise exception
+
+    def put_item(
+        self,
+        put_item_function,
+        item: Dict[str, Any],
+        overwrite: bool,
+    ) -> Optional[str]:
+        params = utils.build_put_item_params(item, self.range_key_items, overwrite)
+
+        self.execute_tries(put_item_function, params)
+
+        return self.build_primary_key(params["Item"])
+
+    def get(
+        self,
+        key_condition: Dict[str, str],
+        filter_condition: Dict[str, str],
+        projection_expression: Optional[List[str]],
+        last_evaluated_key: Optional[Dict[str, Any]],
+        limit: Optional[int],
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        if limit is None:
+            limit = self.max_read_items
+
+        if self.is_primary_key(key_condition):
+            params = utils.build_get_item_params(
+                key_condition,
+                filter_condition,
+                projection_expression,
+                last_evaluated_key,
+                limit,
+            )
+        else:
+            params = utils.build_get_item_params_gsi_key_schema(
+                self.gsi_key_schemas,
+                key_condition,
+                filter_condition,
+                projection_expression,
+                last_evaluated_key,
+                limit,
+            )
+
+        response = self.execute_tries(self.table.query, params)
+
+        return response.get("Items", []), response.get("LastEvaluatedKey")
+
+    def update_item(
+        self,
+        key: Dict[str, Any],
+        filter_condition: Dict[str, Any],
+        update_items: Dict[str, Any],
+        updated_ids: List[Dict[str, Any]],
+    ) -> None:
+        params = utils.build_update_item_params(key, filter_condition, update_items)
+        self.execute_tries(self.table.update_item, params)
+        updated_ids.append(key)

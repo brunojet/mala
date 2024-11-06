@@ -119,7 +119,7 @@ def test_insert(base_repository: Tuple[BaseRepository, Any]):
 
     for item in MOCK_DATA:
         result = repo.insert(item, overwrite=True)
-        TestCase().assertDictEqual(result, utils.build_primary_key(repo.has_range_key, item))
+        TestCase().assertDictEqual(result, repo.build_primary_key(item))
 
 
 def test_query(base_repository: Tuple[BaseRepository, Any]):

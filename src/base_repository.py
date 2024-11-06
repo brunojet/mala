@@ -18,67 +18,10 @@ class BaseRepository(DynamoDBHelper):
             table_name, max_item_size, has_range_key, range_key_items, gsi_key_schemas
         )
 
-    def __insert(
-        self,
-        put_item_function,
-        item: Dict[str, Any],
-        overwrite: bool,
-    ) -> Optional[str]:
-        params = utils.build_put_item_params(item, self.range_key_items, overwrite)
-
-        self.execute_tries(put_item_function, params)
-
-        return utils.build_primary_key(self.has_range_key, params["Item"])
-
-    def __query(
-        self,
-        key_condition: Dict[str, str],
-        filter_condition: Dict[str, str],
-        projection_expression: Optional[List[str]],
-        last_evaluated_key: Optional[Dict[str, Any]],
-        limit: Optional[int],
-    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
-        if limit is None:
-            limit = self.max_read_items
-
-        if utils.is_primary_key(self.has_range_key, key_condition):
-            params = utils.build_get_item_params(
-                key_condition,
-                filter_condition,
-                projection_expression,
-                last_evaluated_key,
-                limit,
-            )
-        else:
-            params = utils.build_get_item_params_gsi_key_schema(
-                self.gsi_key_schemas,
-                key_condition,
-                filter_condition,
-                projection_expression,
-                last_evaluated_key,
-                limit,
-            )
-
-        response = self.execute_tries(self.table.query, params)
-
-        return response.get("Items", []), response.get("LastEvaluatedKey")
-
-    def __update(
-        self,
-        update_item_function: callable,
-        key: Dict[str, Any],
-        filter_condition: Dict[str, Any],
-        update_items: Dict[str, Any],
-        updated_ids: List[Dict[str, Any]],
-    ) -> None:
-        params = utils.build_update_item_params(key, filter_condition, update_items)
-        self.execute_tries(update_item_function, params)
-        updated_ids.append(key)
-
     def insert(
         self, item: Dict[str, Any] = [], overwrite: bool = False
     ) -> Optional[str]:
-        return self.__insert(self.table.put_item, item, overwrite)
+        return self.put_item(self.table.put_item, item, overwrite)
 
     def query(
         self,
@@ -89,7 +32,7 @@ class BaseRepository(DynamoDBHelper):
         limit: Optional[int] = None,
     ) -> Tuple[List[Dict[str, Any]], str]:
 
-        items, last_evaluated_key = self.__query(
+        items, last_evaluated_key = self.get(
             key_condition,
             filter_condition,
             projection_expression,
@@ -107,9 +50,8 @@ class BaseRepository(DynamoDBHelper):
     ) -> List[Dict[str, Any]]:
         updated_ids = []
 
-        if utils.is_primary_key(self.has_range_key, key_condition):
-            self.__update(
-                self.table.update_item,
+        if self.is_primary_key(key_condition):
+            self.update_item(
                 key_condition,
                 filter_condition,
                 update_items,
@@ -128,8 +70,7 @@ class BaseRepository(DynamoDBHelper):
                 )
 
                 for key in keys:
-                    self.__update(
-                        self.table.update_item,
+                    self.update_item(
                         key,
                         None,
                         update_items,

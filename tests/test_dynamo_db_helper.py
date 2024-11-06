@@ -91,6 +91,22 @@ def test_init_table_value_error(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
         helper._init_table("test_table", 2048)
 
 
+def test_is_primary_key(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
+    helper = dynamo_db_helper[0]
+    assert not helper.is_primary_key({"x": "123"})
+    assert helper.is_primary_key({"id": "123", "id_range": "456"})
+    assert not helper.is_primary_key({"id": "123"})
+
+
+def test_build_primary_key(dynamo_db_helper: Tuple[DynamoDBHelper, Any]):
+    helper = dynamo_db_helper[0]
+    primary_key = {"id": "123", "id_range": "456"}
+    assert helper.build_primary_key(primary_key) == {
+        "id": "123",
+        "id_range": "456",
+    }
+
+
 def test_execute_tries_with_provisioned_throughput_exceeded(
     dynamo_db_helper: Tuple[DynamoDBHelper, Any]
 ):
